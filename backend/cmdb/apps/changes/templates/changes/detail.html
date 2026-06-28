@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}{{ c.reference }} - CAB - IS-CMDB{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb bg-transparent px-0">
+    <li class="breadcrumb-item"><a href="{% url 'changes:list' %}">Change management</a></li>
+    <li class="breadcrumb-item active">{{ c.reference|default:"(draft)" }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="mb-1">{{ c.reference|default:"(draft)" }} <small class="text-muted">{{ c.title }}</small></h1>
+    <span class="badge badge-{{ c.type_badge }}">{{ c.get_change_type_display }}</span>
+    <span class="badge badge-info">{{ c.get_temperature_display }}</span>
+    <span class="badge badge-{{ c.status_badge }}">{{ c.get_status_display }}</span>
+    {% if c.risk_tier %}<span class="badge badge-{{ c.risk_badge }}">risk {{ c.get_risk_tier_display }} ({{ c.risk_score }})</span>{% endif %}
+    <span class="badge badge-light border">v{{ c.version }}</span>
+  </div>
+</div>
+
+<div class="card mb-3"><div class="card-body py-2">
+  <h6 class="text-muted mb-1">Description</h6>
+  <p class="mb-0">{{ c.description|linebreaksbr|default:"—" }}</p>
+</div></div>
+
+<div class="row">
+  <div class="col-md-6 mb-4">
+    <div class="card h-100"><div class="card-body">
+      <h6 class="text-muted">Coordination</h6>
+      <table class="table table-sm mb-0">
+        <tr><th>Region</th><td>{{ c.region|default:"—" }}</td></tr>
+        <tr><th>Service impact</th><td>{{ c.get_temperature_display }}</td></tr>
+        <tr><th>Proposer</th><td>{{ c.proposer|default:"—" }}</td></tr>
+        <tr><th>Executer</th><td>{{ c.executer|default:"—" }}</td></tr>
+        <tr><th>Peer reviewer</th><td>{{ c.peer_reviewer|default:"—" }}</td></tr>
+        <tr><th>Maintenance window</th><td>{% if c.maintenance_window %}{{ c.maintenance_window }}{% else %}—{% endif %}</td></tr>
+        <tr><th>Outcome</th><td>{{ c.get_outcome_display }}</td></tr>
+        <tr><th>Calendar event</th><td class="font-mono">{{ c.gcal_event_id|default:"—" }}</td></tr>
+        <tr><th>Notify CIA owners on approval</th><td>{% if c.notify_on_approval %}<span class="badge badge-info">yes</span>{% else %}no{% endif %}</td></tr>
+      </table>
+    </div></div>
+  </div>
+  <div class="col-md-6 mb-4">
+    <div class="card h-100"><div class="card-body">
+      <h6 class="text-muted">Timeline</h6>
+      <table class="table table-sm mb-0">
+        <tr><th>Created</th><td>{{ c.created_at|date:'Y-m-d H:i' }}</td></tr>
+        <tr><th>Submitted</th><td>{{ c.submitted_at|date:'Y-m-d H:i'|default:"—" }}</td></tr>
+        <tr><th>Approved</th><td>{{ c.approved_at|date:'Y-m-d H:i'|default:"—" }}</td></tr>
+        <tr><th>Scheduled</th><td>{{ c.scheduled_at|date:'Y-m-d H:i'|default:"—" }}</td></tr>
+        <tr><th>Started</th><td>{{ c.started_at|date:'Y-m-d H:i'|default:"—" }}</td></tr>
+        <tr><th>Completed</th><td>{{ c.completed_at|date:'Y-m-d H:i'|default:"—" }}</td></tr>
+      </table>
+    </div></div>
+  </div>
+</div>
+
+<h5>Targets</h5>
+<ul>
+  {% for t in targets %}
+  <li><span class="badge badge-secondary">{{ t.get_target_type_display }}</span> <span class="font-mono">{{ t.label }}</span></li>
+  {% empty %}<li class="text-muted">No targets.</li>{% endfor %}
+</ul>
+
+<h5 class="mt-4">Affected environments <small class="text-muted">(computed impact set)</small></h5>
+<div class="table-responsive">
+  <table class="table table-sm js-sortable">
+    <thead class="thead-light"><tr>
+      <th>Environment</th><th>Impact</th><th>Depth</th><th>Type</th><th>Crit</th>
+      <th>Resilience</th><th>Consumer team</th><th>CIA risk owner</th><th>CIA owner</th><th>Notified</th>
+    </tr></thead>
+    <tbody>
+      {% for a in affected %}
+      <tr>
+        <td class="font-mono">{{ a.environment_name }}</td>
+        <td>{{ a.get_impact_type_display }}</td>
+        <td>{{ a.dependency_depth }}</td>
+        <td>{{ a.env_type|default:"—" }}</td>
+        <td>{{ a.criticality_tier|default:"—" }}</td>
+        <td>{% if a.resilient %}<span class="badge badge-success">resilient</span>{% else %}<span class="badge badge-danger" title="{{ a.resilience_basis }}">non-resilient</span>{% endif %}</td>
+        <td>{{ a.consumer_team|default:"—" }}</td>
+        <td>{{ a.cia_risk_owner|default:"—" }}</td>
+        <td>{{ a.cia_owner|default:"—" }}</td>
+        <td>{% if a.notified_at %}{{ a.notified_at|date:'Y-m-d H:i' }}{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="10" class="text-muted">No affected environments computed.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h5 class="mt-4">Approval chain <small class="text-muted">(v{{ c.version }}, consumer last)</small></h5>
+<div class="table-responsive">
+  <table class="table table-sm">
+    <thead class="thead-light"><tr>
+      <th>Level</th><th>Role</th><th>Party</th><th>Decision</th><th>By</th><th>At</th><th>Comment</th>
+    </tr></thead>
+    <tbody>
+      {% for a in approvals %}
+      <tr>
+        <td>L{{ a.level }}</td>
+        <td>{{ a.get_role_display }}</td>
+        <td class="font-mono">{{ a.party }}</td>
+        <td><span class="badge badge-{{ a.badge }}">{{ a.get_decision_display }}</span></td>
+        <td>{{ a.decided_by|default:"—" }}</td>
+        <td>{% if a.decided_at %}{{ a.decided_at|date:'Y-m-d H:i' }}{% else %}—{% endif %}</td>
+        <td>{{ a.comment|default:"" }}{% if a.proposed_alternative_date %} <em>(alt: {{ a.proposed_alternative_date|date:'Y-m-d H:i' }})</em>{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="7" class="text-muted">No approval chain (standard / peer-ack).</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if superseded %}
+<details class="mb-3"><summary class="text-muted">Superseded approvals from earlier versions ({{ superseded.count }})</summary>
+  <table class="table table-sm mt-2">
+    <thead class="thead-light"><tr><th>Ver</th><th>Level</th><th>Role</th><th>Party</th><th>Decision</th></tr></thead>
+    <tbody>{% for a in superseded %}<tr><td>v{{ a.version }}</td><td>L{{ a.level }}</td><td>{{ a.get_role_display }}</td><td class="font-mono">{{ a.party }}</td><td>{{ a.get_decision_display }}</td></tr>{% endfor %}</tbody>
+  </table>
+</details>
+{% endif %}
+
+<div class="row mt-4">
+  <div class="col-md-6 mb-4">
+    <h5>Runbook <small class="text-muted">(recorded, not executed)</small></h5>
+    <p class="mb-1"><strong>Precheck</strong></p><pre class="bg-light p-2 small">{{ c.precheck_commands|default:"—" }}</pre>
+    <p class="mb-1"><strong>Execute</strong></p><pre class="bg-light p-2 small">{{ c.execute_commands|default:"—" }}</pre>
+    <p class="mb-1"><strong>Verify</strong></p><pre class="bg-light p-2 small">{{ c.verify_commands|default:"—" }}</pre>
+    <p class="mb-1"><strong>Rollback</strong></p><pre class="bg-light p-2 small">{{ c.rollback_commands|default:"—" }}</pre>
+    {% if c.staging_notes %}<p class="mb-1"><strong>Staging (cold)</strong></p><pre class="bg-light p-2 small">{{ c.staging_notes }}</pre>{% endif %}
+  </div>
+  <div class="col-md-6 mb-4">
+    <h5>Notifications</h5>
+    <table class="table table-sm">
+      <thead class="thead-light"><tr><th>Channel</th><th>Variant</th><th>Recipient</th><th>Sent</th></tr></thead>
+      <tbody>
+        {% for n in notifications %}
+        <tr><td>{{ n.get_channel_display }}</td><td>{{ n.get_variant_display }}</td><td>{{ n.recipient }}</td>
+          <td>{% if n.sent_at %}{{ n.sent_at|date:'Y-m-d H:i' }}{% else %}—{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="4" class="text-muted">None yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% if c.pir_notes %}<h5 class="mt-3">PIR</h5><pre class="bg-light p-2 small">{{ c.pir_notes }}</pre>{% endif %}
+  </div>
+</div>
+{% endblock %}

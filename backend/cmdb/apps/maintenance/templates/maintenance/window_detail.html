@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Maintenance window #{{ window.pk }}{% endblock %}
+
+{% block content %}
+<div class="mt-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb bg-light">
+      <li class="breadcrumb-item"><a href="{% url 'maintenance:window-list' %}">Maintenance</a></li>
+      <li class="breadcrumb-item active">#{{ window.pk }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex align-items-center mb-3">
+    <h3 class="mb-0">Maintenance window #{{ window.pk }}</h3>
+    {% if window.status == 'cancelled' %}<span class="badge badge-secondary ml-3">{{ window.status }}</span>
+    {% elif window.status == 'active' %}<span class="badge badge-danger ml-3">{{ window.status }}</span>
+    {% elif window.status == 'scheduled' %}<span class="badge badge-warning ml-3">{{ window.status }}</span>
+    {% else %}<span class="badge badge-success ml-3">{{ window.status }}</span>{% endif %}
+
+    {% if can_cancel %}
+    <form method="post" action="/maintenance/{{ window.pk }}/cancel/" class="ml-auto">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-danger"
+              onclick="return confirm('Cancel this maintenance window?');">Cancel window</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <tr><th>Scope</th><td><span class="badge badge-secondary text-uppercase">{{ window.scope }}</span></td></tr>
+        <tr><th>Target</th><td>
+          {% if window.scope == 'node' %}<a href="{% url 'netbox:node-detail' hostname=window.node.hostname %}" class="font-mono">{{ window.target_label }}</a> ({{ window.resolved_cloud }})
+          {% elif window.scope == 'cloud' %}<a href="{% url 'netbox:cloud-detail' slug=window.cloud %}" class="font-mono">{{ window.target_label }}</a>
+          {% else %}<a href="{% url 'environment-detail' name=window.target_label %}" class="font-mono">{{ window.target_label }}</a> ({{ window.resolved_cloud }}){% endif %}
+        </td></tr>
+        <tr><th>Starts</th><td>{{ window.starts_at|utclocal }}</td></tr>
+        <tr><th>Ends</th><td>{{ window.ends_at|utclocal }}</td></tr>
+        <tr><th>Reason</th><td>{{ window.reason }}</td></tr>
+        <tr><th>PagerDuty window</th><td class="font-mono">{{ window.pagerduty_window_id|default:"— (not silenced)" }}</td></tr>
+        <tr><th>COS silence</th><td class="font-mono">{{ window.cos_silence_id|default:"— (not silenced)" }}</td></tr>
+        <tr><th>Created by</th><td>{{ window.created_by|default:"—" }} at {{ window.created_at|utclocal }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Environments affected <span class="badge badge-secondary">{{ affected|length }}</span></div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Environment</th><th>Team</th><th>Criticality</th></tr></thead>
+        <tbody>
+          {% for env in affected %}
+          <tr>
+            <td><a href="{% url 'environment-detail' name=env.name %}">{{ env.name }}</a></td>
+            <td>{{ env.team|default:"—" }}</td>
+            <td>{{ env.criticality_tier|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="text-muted">No environments recorded for this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Notification log</div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Channel</th><th>Sent at</th><th>Result</th><th>Error</th></tr></thead>
+        <tbody>
+          {% for ch in channels %}
+          <tr>
+            <td>{{ ch.get_channel_display }}</td>
+            <td>{{ ch.sent_at|default:"—" }}</td>
+            <td>{% if ch.success %}<span class="badge badge-success">sent</span>{% else %}<span class="badge badge-danger">not sent</span>{% endif %}</td>
+            <td class="small text-muted">{{ ch.error_message|default:"" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted">No notifications recorded.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "_base.html" %}
+{% block content %}
+<div class="topbar">
+  <h1>IS Standup</h1>
+  <div class="region-btns">
+    {% for link in region_links %}
+    <a class="region-btn {% if link.active %}active{% endif %}"
+       href="{{ link.href }}">{{ link.key }}</a>
+    {% endfor %}
+    <button type="button" class="region-btn mgmt-tab {% if show_management %}active{% endif %}"
+            hx-post="/toggle/management" hx-include="#controls"
+            hx-target="#dashboard" hx-swap="outerHTML"
+            onclick="this.classList.toggle('active')"
+            title="Show/hide the Management group">Management</button>
+  </div>
+  <button class="action" hx-post="/refresh" hx-include="#controls"
+          hx-target="#dashboard" hx-swap="outerHTML">Refresh</button>
+  <label class="toggle" title="When on, in-progress ISReq tickets that aren't Highest, a ps5-blocker, or [PR/MP Review] are highlighted as distractors (red)">
+    <input type="checkbox" id="highest-toggle" name="value" {% if highest_focus %}checked{% endif %}
+           hx-post="/toggle/highest" hx-swap="none"
+           hx-vals='js:{value: event.target.checked ? "on" : "off"}'>
+    Focus: Highest/PS5/PR-MP
+  </label>
+  <button class="action" hx-get="/schedule" hx-target="#modal-root">Schedule</button>
+  <button class="action" hx-get="/roster" hx-target="#modal-root">Roster</button>
+  <button class="action" hx-get="/legend" hx-target="#modal-root" title="Role × ticket colour rules">Legend</button>
+  <button class="action" hx-get="/alerts/offenders" hx-include="#controls" hx-target="#modal-root" title="Alerts that fired 2+ times this pulse">Repeat alerts</button>
+  <button class="action" hx-get="/tickets/aging-wip" hx-include="#controls" hx-target="#modal-root" title="Tickets sitting In Progress too long">Aging WIP</button>
+  <button class="action" data-toggle-theme title="Toggle dark mode">&#9789;</button>
+  <div class="spacer"></div>
+  <span id="last-fetch" class="last-fetch">{{ last_fetch_label }}</span>
+</div>
+
+<form id="controls" style="display:none">
+  {% for r in selected_regions %}<input type="hidden" name="regions" value="{{ r }}">{% endfor %}
+  {% if not selected_regions %}<input type="hidden" name="regions" value="none">{% endif %}
+</form>
+
+{% include "_dashboard.html" %}
+
+<div id="panels"></div>
+{% endblock %}

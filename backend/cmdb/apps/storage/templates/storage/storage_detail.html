@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ storage.name }} — Storage{% endblock %}
+
+{% block content %}
+<div class="mt-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb bg-light">
+      <li class="breadcrumb-item"><a href="{% url 'storage:list' %}">Storage</a></li>
+      <li class="breadcrumb-item active">{{ storage.name }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex align-items-center mb-3">
+    <h3 class="mb-0 font-mono">{{ storage.name }}</h3>
+    {% if cross_cloud %}<span class="badge badge-warning ml-3" title="Accessed from more than one cloud">cross-cloud</span>{% endif %}
+    <a href="/api/storage/{{ storage.name }}/blast-radius/" class="btn btn-sm btn-outline-secondary ml-auto">Blast radius (JSON)</a>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <tr><th>Bucket</th><td class="font-mono">{{ storage.bucket_name }}</td></tr>
+        <tr><th>Type</th><td>{{ storage.get_storage_type_display }}</td></tr>
+        <tr><th>Cloud</th><td>{{ storage.cloud }}</td></tr>
+        <tr><th>Owner team</th><td>{% if storage.owner_team %}<a href="{% url 'storage:team-storage' name=storage.owner_team %}">{{ storage.owner_team }}</a>{% else %}—{% endif %}</td></tr>
+        <tr><th>Size</th><td>{{ storage.size_gb|floatformat:1 }} GB</td></tr>
+        <tr><th>Objects</th><td>{{ storage.object_count }}</td></tr>
+        <tr><th>Clouds accessing</th><td>{{ clouds|join:", "|default:"—" }}</td></tr>
+        <tr><th>Last synced</th><td>{{ storage.last_synced_at|utclocal }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Environments with access <span class="badge badge-secondary">{{ accesses|length }}</span></div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Environment</th><th>Cloud</th><th>Team</th><th>Access</th></tr></thead>
+        <tbody>
+          {% for a in accesses %}
+          <tr>
+            <td><a href="{% url 'environment-detail' name=a.environment.name %}">{{ a.environment.name }}</a></td>
+            <td>{{ a.environment.cloud|default:"—" }}</td>
+            <td>{{ a.environment.team|default:"—" }}</td>
+            <td><span class="badge badge-info">{{ a.access_type }}</span></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted">No environments access this bucket.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

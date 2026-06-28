@@ -1,0 +1,1055 @@
+{% extends "base.html" %}
+{% load humanize cmdb_format %}
+
+{% block title %}{{ environment.name }} - IS-CMDB{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        margin: -1rem -1rem 2rem -1rem;
+        border-radius: 0.5rem;
+    }
+    .detail-header h1 {
+        color: white;
+        margin-bottom: 0.5rem;
+        font-size: 2rem;
+    }
+    .card {
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+    }
+    .card-header {
+        background: #f8f9fa;
+        border-bottom: 2px solid #e9ecef;
+        font-weight: 600;
+    }
+    dt {
+        font-weight: 600;
+        color: #495057;
+    }
+    dd {
+        color: #6c757d;
+    }
+    .badge-xl {
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+        margin-right: 0.5rem;
+    }
+    .dependency-link {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        margin: 0.25rem;
+        background: #f8f9fa;
+        border-radius: 0.25rem;
+        text-decoration: none;
+        transition: background 0.2s;
+    }
+    .dependency-link:hover {
+        background: #e9ecef;
+        text-decoration: none;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #adb5bd;
+    }
+    .section-divider {
+        border-top: 2px solid #e9ecef;
+        margin: 2rem 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% if maintenance_window %}
+    <div class="alert alert-warning mt-2" role="alert">
+        🔧 <strong>Maintenance {{ maintenance_window.status }}</strong> on node
+        <a href="{% url 'netbox:node-detail' hostname=maintenance_window.node.hostname %}" class="font-mono">{{ maintenance_window.node.hostname }}</a>:
+        {{ maintenance_window.starts_at|utclocal }} → {{ maintenance_window.ends_at|utclocal }}.
+        <a href="{% url 'maintenance:window-detail' pk=maintenance_window.pk %}">View window &raquo;</a>
+    </div>
+    {% endif %}
+    {% if environment.primary_node and environment.primary_node.physical_completeness < 0.8 %}
+    <div class="alert alert-warning mt-2" role="alert">
+        ⚠️ Physical data for primary node
+        <a href="{% url 'netbox:node-detail' hostname=environment.primary_node.hostname %}" class="font-mono">{{ environment.primary_node.hostname }}</a>
+        is incomplete ({% widthratio environment.primary_node.physical_completeness 1 100 %}% of interfaces cabled in Netbox) — resilience / blast-radius analysis for this environment may be unreliable.
+    </div>
+    {% endif %}
+    <!-- Header -->
+    <div class="detail-header">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb bg-transparent p-0 mb-2">
+                <li class="breadcrumb-item"><a href="/" class="text-white">Environments</a></li>
+                <li class="breadcrumb-item active text-white">{{ environment.name }}</li>
+            </ol>
+        </nav>
+
+        <div class="d-flex align-items-center">
+            <h1 class="font-mono mb-0">{{ environment.name }}</h1>
+            <a href="{% url 'maintenance:window-new-env' name=environment.name %}"
+               class="btn btn-sm btn-outline-warning ml-auto">🔧 Maintenance mode</a>
+        </div>
+
+        <div class="mt-3">
+            {% if environment.env_type == 'prod' %}
+            <span class="badge badge-danger badge-xl">Production</span>
+            {% elif environment.env_type == 'staging' %}
+            <span class="badge badge-warning badge-xl">Staging</span>
+            {% elif environment.env_type == 'dev' %}
+            <span class="badge badge-info badge-xl">Development</span>
+            {% else %}
+            <span class="badge badge-secondary badge-xl">{{ environment.env_type|title }}</span>
+            {% endif %}
+
+            {% if environment.status == 'active' %}
+            <span class="badge badge-success badge-xl">Active</span>
+            {% elif environment.status == 'maintenance' %}
+            <span class="badge badge-warning badge-xl">Maintenance</span>
+            {% elif environment.status == 'provisioning' %}
+            <span class="badge badge-info badge-xl">Provisioning</span>
+            {% elif environment.status == 'degraded' %}
+            <span class="badge badge-danger badge-xl">Degraded</span>
+            {% elif environment.status == 'decommissioning' %}
+            <span class="badge badge-secondary badge-xl">Decommissioning</span>
+            {% else %}
+            <span class="badge badge-dark badge-xl">{{ environment.status|title }}</span>
+            {% endif %}
+
+            {% if environment.criticality_tier == 1 %}
+            <span class="badge badge-danger badge-xl">Tier 1 - Critical</span>
+            {% elif environment.criticality_tier == 2 %}
+            <span class="badge badge-warning badge-xl">Tier 2 - Important</span>
+            {% elif environment.criticality_tier == 3 %}
+            <span class="badge badge-secondary badge-xl">Tier 3 - Best Effort</span>
+            {% endif %}
+
+            {% if environment.k8s_distribution == 'ck8s' %}
+            <span class="badge badge-primary badge-xl">☸ CK8s</span>
+            {% elif environment.k8s_distribution == 'ck8s-jenkins-aas' %}
+            <span class="badge badge-primary badge-xl">☸ Jenkins aaS on CK8s</span>
+            {% elif environment.k8s_distribution == 'legacy-k8s' %}
+            <span class="badge badge-warning badge-xl">☸ Legacy k8s</span>
+            {% endif %}
+
+            {% if environment.data_classification %}
+            <span class="badge badge-dark badge-xl">{{ environment.data_classification|upper }}</span>
+            {% endif %}
+        </div>
+
+        {% if environment.description %}
+        <p class="mt-3 mb-0" style="font-size: 1.1rem;">{{ environment.description }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Main Content -->
+    <div class="row">
+        <!-- Left Column: Declared State -->
+        <div class="col-lg-8">
+
+            <!-- Identity -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Identity</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Name</dt>
+                        <dd class="col-sm-9 font-mono">{{ environment.name }}</dd>
+
+                        <dt class="col-sm-3">Source</dt>
+                        <dd class="col-sm-9 font-mono text-sm">
+                            {% if environment.git_path %}
+                            <a href="https://github.com/canonical/infrastructure-services/blob/main/{{ environment.git_path }}"
+                               target="_blank" rel="noopener" title="View definition in infrastructure-services">
+                                infrastructure-services/{{ environment.git_path }} ↗
+                            </a>
+                            {% else %}—{% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">Region</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.region %}
+                            <span class="badge badge-info">{{ environment.region|upper }}</span>
+                            {% else %}—{% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">Cloud</dt>
+                        <dd class="col-sm-9">{{ environment.cloud|default:"—" }}</dd>
+
+                        <dt class="col-sm-3">Service Primitive</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.service_primitive %}
+                            <span class="badge badge-primary">{{ environment.service_primitive }}</span>
+                            {% else %}—{% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">Service Class</dt>
+                        <dd class="col-sm-9">{{ environment.service_class|default:"—" }}</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Ownership -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Ownership</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Team</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.team %}
+                            <strong>{{ environment.team }}</strong>
+                            {% else %}—{% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">Owner</dt>
+                        <dd class="col-sm-9">{{ environment.owner|default:"—" }}</dd>
+
+                        {% if environment.cia_owner %}
+                        <dt class="col-sm-3">CIA Owner</dt>
+                        <dd class="col-sm-9">
+                            <a href="mailto:{{ environment.cia_owner }}">{{ environment.cia_owner }}</a>
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.cia_risk_owner %}
+                        <dt class="col-sm-3">Risk Owner</dt>
+                        <dd class="col-sm-9">
+                            <a href="mailto:{{ environment.cia_risk_owner }}">{{ environment.cia_risk_owner }}</a>
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.cia_custodian %}
+                        <dt class="col-sm-3">Custodian</dt>
+                        <dd class="col-sm-9">{{ environment.cia_custodian }}</dd>
+                        {% endif %}
+
+                        {% if not env_has_cia %}
+                        <dt class="col-sm-3 text-warning">CIA owner</dt>
+                        <dd class="col-sm-9">
+                          <span class="badge badge-warning">missing</span>
+                          {% if cia_editors.editors %}
+                          <div class="small mt-1">No CIA data — likely owners, from who edited
+                            <code>{{ environment.git_path }}</code>:
+                            <ul class="mb-1">
+                              {% for e in cia_editors.editors %}
+                              <li>{{ e.name }}{% if e.login %} (<a href="https://github.com/{{ e.login }}" target="_blank">@{{ e.login }}</a>){% endif %}{% if e.email %} — <a href="mailto:{{ e.email }}">{{ e.email }}</a>{% endif %} <span class="text-muted">· last {{ e.last }}</span></li>
+                              {% endfor %}
+                            </ul>
+                          </div>
+                          {% elif cia_editors.source == 'bot-only' %}
+                          <div class="small text-muted mt-1">Only automated commits touched
+                            <code>{{ environment.git_path }}</code> — no human editor recorded.</div>
+                          {% elif cia_editors.source == 'unconfigured' %}
+                          <div class="small text-muted mt-1">Set <code>INFRA_REPO_PATH</code> to an
+                            infrastructure-services clone to show who edited the file.</div>
+                          {% endif %}
+                          {% if cia_editors.history_url %}
+                          <a class="small" href="{{ cia_editors.history_url }}" target="_blank">View file history ↗</a>
+                          {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.oncall_handle %}
+                        <dt class="col-sm-3">On-Call</dt>
+                        <dd class="col-sm-9">{{ environment.oncall_handle }}</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Classification & SLO -->
+            {% if environment.criticality_tier or environment.slo_level or environment.data_classification %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Classification & SLO</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        {% if environment.criticality_tier %}
+                        <dt class="col-sm-3">Criticality</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.criticality_tier == 1 %}
+                            <span class="badge badge-danger">Tier 1</span> Business Critical
+                            {% elif environment.criticality_tier == 2 %}
+                            <span class="badge badge-warning">Tier 2</span> Important
+                            {% elif environment.criticality_tier == 3 %}
+                            <span class="badge badge-secondary">Tier 3</span> Best Effort
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.slo_level %}
+                        <dt class="col-sm-3">SLO Level</dt>
+                        <dd class="col-sm-9">{{ environment.slo_level }}</dd>
+                        {% endif %}
+
+                        {% if environment.slo_rto %}
+                        <dt class="col-sm-3">RTO</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.slo_rto >= 86400 %}
+                                {% widthratio environment.slo_rto 86400 1 %} days ({{ environment.slo_rto|floatformat:0 }} seconds)
+                            {% elif environment.slo_rto >= 3600 %}
+                                {% widthratio environment.slo_rto 3600 1 %} hours ({{ environment.slo_rto|floatformat:0 }} seconds)
+                            {% else %}
+                                {{ environment.slo_rto|floatformat:0 }} seconds
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.data_classification %}
+                        <dt class="col-sm-3">Data Class</dt>
+                        <dd class="col-sm-9">
+                            <span class="badge badge-dark">{{ environment.data_classification|upper }}</span>
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.compliance_scope %}
+                        <dt class="col-sm-3">Compliance</dt>
+                        <dd class="col-sm-9">
+                            {% for scope in environment.compliance_scope %}
+                            <span class="badge badge-info">{{ scope }}</span>
+                            {% endfor %}
+                        </dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Operational -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Operational</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Status</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.status == 'active' %}
+                            <span class="badge badge-success">Active</span>
+                            {% elif environment.status == 'maintenance' %}
+                            <span class="badge badge-warning">Maintenance</span>
+                            {% else %}
+                            <span class="badge badge-secondary">{{ environment.status|title }}</span>
+                            {% endif %}
+                        </dd>
+
+                        {% if environment.live != None %}
+                        <dt class="col-sm-3">Live</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.live %}
+                            <span class="badge badge-success">Yes</span>
+                            {% else %}
+                            <span class="badge badge-secondary">No</span>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        <dt class="col-sm-3">Last Updated</dt>
+                        <dd class="col-sm-9">{{ environment.updated_at|utclocal:"Y-m-d H:i:s" }}</dd>
+
+                        <dt class="col-sm-3">Declared At</dt>
+                        <dd class="col-sm-9">{{ environment.declared_at|utclocal:"Y-m-d H:i:s" }}</dd>
+
+                        <dt class="col-sm-3">Last Git Commit</dt>
+                        <dd class="col-sm-9 font-mono">{{ environment.last_git_commit|default:"—" }}</dd>
+
+                        {% if environment.bastion_server %}
+                        <dt class="col-sm-3">Bastion</dt>
+                        <dd class="col-sm-9 font-mono">{{ environment.bastion_server }}</dd>
+                        {% endif %}
+
+                        {% if environment.runbook_url %}
+                        <dt class="col-sm-3">Runbook</dt>
+                        <dd class="col-sm-9"><a href="{{ environment.runbook_url }}" target="_blank">{{ environment.runbook_url }}</a></dd>
+                        {% endif %}
+
+                        {% if environment.risk_group %}
+                        <dt class="col-sm-3">Risk Group</dt>
+                        <dd class="col-sm-9">{{ environment.risk_group }}</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+
+
+            <!-- GitOps -->
+            <div class="card">
+                <div class="card-header d-flex align-items-center">
+                    <h5 class="mb-0">GitOps</h5>
+                    {% if environment.gitops_managed %}
+                    <a href="{% url 'gitops-overview' %}" class="badge badge-success ml-auto">managed</a>
+                    {% else %}
+                    <span class="badge badge-secondary ml-auto">not managed</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if environment.gitops_managed %}
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Model repo</dt>
+                        <dd class="col-sm-9 font-mono">
+                            {% if environment.gitops_repo %}
+                            <a href="https://github.com/canonical/{{ environment.gitops_repo }}{% if environment.gitops_path %}/tree/main/{{ environment.gitops_path }}{% endif %}"
+                               target="_blank" rel="noopener" title="View model in {{ environment.gitops_repo }}">
+                                {{ environment.gitops_repo }} ↗
+                            </a>
+                            {% else %}—{% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">Model path</dt>
+                        <dd class="col-sm-9 font-mono">{{ environment.gitops_path|default:"—" }}</dd>
+
+                        <dt class="col-sm-3">Enabled</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.gitops_enabled %}<span class="badge badge-success">Yes</span>
+                            {% elif environment.gitops_enabled == False %}<span class="badge badge-secondary">No</span>
+                            {% else %}—{% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">Reconciliation</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.gitops_suspended %}<span class="badge badge-warning">Suspended</span>
+                            {% else %}<span class="badge badge-success">Active</span>{% endif %}
+                        </dd>
+
+                        {% if environment.gitops_modules %}
+                        <dt class="col-sm-3">Modules</dt>
+                        <dd class="col-sm-9">
+                            {% for mod in environment.gitops_modules %}
+                            <a href="https://github.com/canonical/is-terraform-modules/tree/main/{{ mod }}"
+                               target="_blank" rel="noopener" class="badge badge-info font-mono"
+                               title="View in is-terraform-modules">{{ mod }} ↗</a>
+                            {% endfor %}
+                        </dd>
+                        {% endif %}
+                    </dl>
+                    {% else %}
+                    <p class="text-muted mb-0">
+                        Not reconciled by GitOps — no <code>gitops_model_management</code> declared in is-infrastructure.
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+
+            <!-- Resource Capacity -->
+            {% if environment.quotas or environment.database_size or environment.worker_groups or environment.compute_architecture %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Resource Capacity</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Quotas -->
+                        {% if environment.quotas %}
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Resource Quotas</h6>
+                            <dl class="row">
+                                {% if environment.quotas.cores %}
+                                <dt class="col-sm-5">CPU Cores</dt>
+                                <dd class="col-sm-7"><strong>{{ environment.quotas.cores }}</strong></dd>
+                                {% endif %}
+
+                                {% if environment.quotas.ram %}
+                                <dt class="col-sm-5">RAM</dt>
+                                <dd class="col-sm-7">
+                                    <strong>{{ environment.quotas.ram|mb_to_human }}</strong>
+                                    <small class="text-muted">({{ environment.quotas.ram|intcomma }} MB)</small>
+                                </dd>
+                                {% endif %}
+
+                                {% if environment.quotas.instances %}
+                                <dt class="col-sm-5">Max Instances</dt>
+                                <dd class="col-sm-7">{{ environment.quotas.instances }}</dd>
+                                {% endif %}
+
+                                {% if environment.quotas.gigabytes %}
+                                <dt class="col-sm-5">Storage</dt>
+                                <dd class="col-sm-7"><strong>{{ environment.quotas.gigabytes }} GB</strong></dd>
+                                {% endif %}
+
+                                {% if environment.quotas.volumes %}
+                                <dt class="col-sm-5">Max Volumes</dt>
+                                <dd class="col-sm-7">{{ environment.quotas.volumes }}</dd>
+                                {% endif %}
+
+                                {% if environment.quotas.floating_ips %}
+                                <dt class="col-sm-5">Floating IPs</dt>
+                                <dd class="col-sm-7">{{ environment.quotas.floating_ips }}</dd>
+                                {% endif %}
+
+                                {% if environment.quotas.security_groups %}
+                                <dt class="col-sm-5">Security Groups</dt>
+                                <dd class="col-sm-7">{{ environment.quotas.security_groups }}</dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                        {% endif %}
+
+                        <!-- Database and K8s sizing -->
+                        <div class="col-md-6">
+                            {% if environment.database_size or environment.postgresql_major_version %}
+                            <h6 class="text-muted mb-3">Database Configuration</h6>
+                            <dl class="row">
+                                {% if environment.database_size %}
+                                <dt class="col-sm-5">Size</dt>
+                                <dd class="col-sm-7">
+                                    <span class="badge badge-info">{{ environment.database_size }}</span>
+                                </dd>
+                                {% endif %}
+
+                                {% if environment.postgresql_major_version %}
+                                <dt class="col-sm-5">PostgreSQL</dt>
+                                <dd class="col-sm-7">Version {{ environment.postgresql_major_version }}</dd>
+                                {% endif %}
+                            </dl>
+                            {% endif %}
+
+                            {% if environment.worker_groups %}
+                            <h6 class="text-muted mb-3">Kubernetes Sizing</h6>
+                            <dl class="row">
+                                {% if environment.control_plane_size %}
+                                <dt class="col-sm-5">Control Plane</dt>
+                                <dd class="col-sm-7">
+                                    <span class="badge badge-primary">{{ environment.control_plane_size }}</span>
+                                    {% if environment.control_plane_units %}
+                                    × {{ environment.control_plane_units }} units
+                                    {% endif %}
+                                </dd>
+                                {% endif %}
+
+                                <dt class="col-sm-5">Worker Groups</dt>
+                                <dd class="col-sm-7">
+                                    {% for group in environment.worker_groups %}
+                                    <div class="mb-1">
+                                        <strong>{{ group.name }}</strong>:
+                                        <span class="badge badge-secondary">{{ group.size }}</span>
+                                        × {{ group.units }} units
+                                    </div>
+                                    {% endfor %}
+                                </dd>
+                            </dl>
+                            {% endif %}
+
+                            {% if environment.compute_architecture %}
+                            <h6 class="text-muted mb-3">Architecture</h6>
+                            <dl class="row">
+                                <dt class="col-sm-5">Architecture</dt>
+                                <dd class="col-sm-7">
+                                    <span class="badge badge-dark">{{ environment.compute_architecture }}</span>
+                                </dd>
+                            </dl>
+                            {% endif %}
+
+                            {% if environment.network_size %}
+                            <dl class="row">
+                                <dt class="col-sm-5">Network Size</dt>
+                                <dd class="col-sm-7">/{{ environment.network_size }} CIDR</dd>
+                            </dl>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Network Configuration -->
+            {% if environment.cluster or environment.network_type or environment.ingress_addresses or environment.extra_network_peers %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Network Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        {% if environment.cluster %}
+                        <dt class="col-sm-3">Cluster</dt>
+                        <dd class="col-sm-9 font-mono">{{ environment.cluster }}</dd>
+                        {% endif %}
+
+                        {% if environment.network_type %}
+                        <dt class="col-sm-3">Network Type</dt>
+                        <dd class="col-sm-9">{{ environment.network_type }}</dd>
+                        {% endif %}
+
+                        {% if environment.ingress_addresses %}
+                        <dt class="col-sm-3">Ingress Addresses</dt>
+                        <dd class="col-sm-9">
+                            {% for addr in environment.ingress_addresses %}
+                            <span class="badge badge-info mr-1">{{ addr }}</span>
+                            {% endfor %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.extra_network_peers %}
+                        <dt class="col-sm-3">Network Peers</dt>
+                        <dd class="col-sm-9">
+                            {% for peer in environment.extra_network_peers %}
+                            <span class="badge badge-secondary mr-1">{{ peer }}</span>
+                            {% endfor %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.extra_subnet %}
+                        <dt class="col-sm-3">Extra Subnet</dt>
+                        <dd class="col-sm-9 font-mono">{{ environment.extra_subnet }}</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Access & Permissions -->
+            {% if environment.iam_groups or environment.grant_team_access != None or environment.jaas_managed != None or environment.role_account_lp_users %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Access & Permissions</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        {% if environment.jaas_managed != None %}
+                        <dt class="col-sm-3">JAAS Managed</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.jaas_managed %}
+                            <span class="badge badge-success">Yes</span>
+                            {% else %}
+                            <span class="badge badge-secondary">No</span>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.grant_team_access != None %}
+                        <dt class="col-sm-3">Team Access</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.grant_team_access %}
+                            <span class="badge badge-success">Granted</span>
+                            {% else %}
+                            <span class="badge badge-secondary">Not Granted</span>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.iam_groups %}
+                        <dt class="col-sm-3">IAM Groups</dt>
+                        <dd class="col-sm-9">
+                            {% for group in environment.iam_groups %}
+                            <span class="badge badge-primary mr-1">{{ group }}</span>
+                            {% endfor %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.accessing_iam_groups %}
+                        <dt class="col-sm-3">Accessing IAM Groups</dt>
+                        <dd class="col-sm-9">
+                            {% for group in environment.accessing_iam_groups %}
+                            <span class="badge badge-info mr-1">{{ group }}</span>
+                            {% endfor %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.role_account_lp_users %}
+                        <dt class="col-sm-3">Role Account Users</dt>
+                        <dd class="col-sm-9">
+                            {% for user in environment.role_account_lp_users %}
+                            <span class="badge badge-secondary mr-1">{{ user }}</span>
+                            {% endfor %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.openstack_credential_access != None %}
+                        <dt class="col-sm-3">OpenStack Creds</dt>
+                        <dd class="col-sm-9">
+                            {% if environment.openstack_credential_access %}
+                            <span class="badge badge-warning">Access Granted</span>
+                            {% else %}
+                            <span class="badge badge-secondary">No Access</span>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Compute Features -->
+            {% if environment.builder_workloads != None or environment.allow_vgpu != None or environment.allow_gpu_passthrough != None or environment.allow_dedicated_cpu != None or environment.manage_flavor_access != None %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Compute Features</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        {% if environment.builder_workloads != None %}
+                        <dt class="col-sm-4">Builder Workloads</dt>
+                        <dd class="col-sm-8">
+                            {% if environment.builder_workloads %}
+                            <span class="badge badge-success">Allowed</span>
+                            {% else %}
+                            <span class="badge badge-secondary">Not Allowed</span>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.allow_vgpu != None %}
+                        <dt class="col-sm-4">vGPU</dt>
+                        <dd class="col-sm-8">
+                            {% if environment.allow_vgpu %}
+                            <span class="badge badge-success">Allowed</span>
+                            {% else %}
+                            <span class="badge badge-secondary">Not Allowed</span>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.allow_gpu_passthrough != None %}
+                        <dt class="col-sm-4">GPU Passthrough</dt>
+                        <dd class="col-sm-8">
+                            {% if environment.allow_gpu_passthrough %}
+                            <span class="badge badge-success">Allowed</span>
+                            {% else %}
+                            <span class="badge badge-secondary">Not Allowed</span>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.allow_dedicated_cpu != None %}
+                        <dt class="col-sm-4">Dedicated CPU</dt>
+                        <dd class="col-sm-8">
+                            {% if environment.allow_dedicated_cpu %}
+                            <span class="badge badge-success">Allowed</span>
+                            {% else %}
+                            <span class="badge badge-secondary">Not Allowed</span>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+
+                        {% if environment.manage_flavor_access != None %}
+                        <dt class="col-sm-4">Flavor Access Mgmt</dt>
+                        <dd class="col-sm-8">
+                            {% if environment.manage_flavor_access %}
+                            <span class="badge badge-info">Managed</span>
+                            {% else %}
+                            <span class="badge badge-secondary">Unmanaged</span>
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Related Models & Services -->
+            {% if environment.remote_cmr_models or environment.accessing_juju_models or environment.data_integrator_accessing_juju_model or environment.services %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Related Models & Services</h5>
+                </div>
+                <div class="card-body">
+                    {% if environment.remote_cmr_models %}
+                    <h6 class="text-muted mb-2">Remote CMR Models</h6>
+                    <div class="mb-3">
+                        {% for model in environment.remote_cmr_models %}
+                        <span class="badge badge-primary mr-1">{{ model }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if environment.accessing_juju_models %}
+                    <h6 class="text-muted mb-2">Accessing Juju Models</h6>
+                    <div class="mb-3">
+                        {% for model in environment.accessing_juju_models %}
+                        <span class="badge badge-info mr-1">{{ model }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if environment.data_integrator_accessing_juju_model %}
+                    <h6 class="text-muted mb-2">Data Integrator Models</h6>
+                    <div class="mb-3">
+                        {% for model in environment.data_integrator_accessing_juju_model %}
+                        <span class="badge badge-warning mr-1">{{ model }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if environment.services %}
+                    <h6 class="text-muted mb-2">Services</h6>
+                    <div>
+                        {% for service in environment.services %}
+                        <span class="badge badge-success mr-1">{{ service }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if not environment.remote_cmr_models and not environment.accessing_juju_models and not environment.data_integrator_accessing_juju_model and not environment.services %}
+                    <div class="empty-state">
+                        <p class="mb-0">No related models or services</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Dependencies -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Dependencies ({{ dependencies.count }})</h5>
+                    <small class="text-muted">What this environment depends on</small>
+                </div>
+                <div class="card-body">
+                    {% if dependencies %}
+                    <div class="d-flex flex-wrap">
+                        {% for dep in dependencies %}
+                        <a href="{% url 'environment-detail' dep.depends_on_name %}" class="dependency-link">
+                            {{ dep.depends_on_name }}
+                            <span class="badge badge-secondary badge-sm ml-1">{{ dep.dependency_type }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <p class="mb-0">No dependencies declared</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Dependents -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Dependents ({{ dependents.count }})</h5>
+                    <small class="text-muted">What depends on this environment</small>
+                </div>
+                <div class="card-body">
+                    {% if dependents %}
+                    <div class="d-flex flex-wrap">
+                        {% for dep in dependents %}
+                        <a href="{% url 'environment-detail' dep.environment_name %}" class="dependency-link">
+                            {{ dep.environment_name }}
+                            <span class="badge badge-secondary badge-sm ml-1">{{ dep.dependency_type }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <p class="mb-0">No dependents found</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Live Placement -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Live Placement</h5>
+                    {% if placement %}
+                    <small class="text-success">● Live</small>
+                    {% elif cloud_supports_placement %}
+                    <small class="text-warning">● Stale</small>
+                    {% else %}
+                    <small class="text-muted">— No data</small>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if placement %}
+                    <!-- Live placement data -->
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Source</dt>
+                        <dd class="col-sm-7"><span class="badge badge-success">{{ placement.source }}</span></dd>
+
+                        <dt class="col-sm-5">Cloud</dt>
+                        <dd class="col-sm-7"><span class="badge badge-info">{{ placement.cloud }}</span></dd>
+
+                        {% if placement.juju_model %}
+                        <dt class="col-sm-5">Juju Model</dt>
+                        <dd class="col-sm-7 font-mono small">{{ placement.juju_model }}</dd>
+                        {% endif %}
+
+                        <dt class="col-sm-5">Primary Host</dt>
+                        <dd class="col-sm-7 font-mono small">{{ placement.primary_host|default:"—" }}</dd>
+
+                        {% if placement.secondary_host %}
+                        <dt class="col-sm-5">Secondary Host</dt>
+                        <dd class="col-sm-7 font-mono small">{{ placement.secondary_host }}</dd>
+                        {% endif %}
+
+                        <dt class="col-sm-5">VMs</dt>
+                        <dd class="col-sm-7"><strong>{{ placement.vm_count }}</strong></dd>
+
+                        <dt class="col-sm-5">Total vCPUs</dt>
+                        <dd class="col-sm-7"><strong>{{ placement.total_vcpus }}</strong></dd>
+
+                        <dt class="col-sm-5">Total RAM</dt>
+                        <dd class="col-sm-7"><strong>{{ placement.total_ram_mb|mb_to_human }}</strong></dd>
+
+                        <dt class="col-sm-5">Recorded At</dt>
+                        <dd class="col-sm-7 small text-muted">{{ placement.recorded_at|utclocal }}</dd>
+                    </dl>
+
+                    {% if placement.hosts %}
+                    <h6 class="text-muted mb-2 mt-3">Hosts ({{ placement.hosts|length }})</h6>
+                    <div class="mb-2">
+                        {% for host in placement.hosts %}
+                        <span class="badge badge-secondary badge-sm mr-1">{{ host }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% elif cloud_supports_placement %}
+                    <!-- Cloud supports placement but data is stale -->
+                    <div class="alert alert-warning mb-0">
+                        <small>
+                            <strong>Placement data stale</strong><br>
+                            No recent placement data from {{ environment.cloud }}. The collector may need attention.
+                        </small>
+                    </div>
+                    {% else %}
+                    <!-- Cloud doesn't support placement -->
+                    <div class="empty-state">
+                        <p class="text-muted">
+                            <span class="badge badge-secondary">—</span><br>
+                            <strong>No placement data</strong><br>
+                            Cloud {{ environment.cloud|default:"unknown" }} does not have placement collection configured.
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if environment.juju_controller or environment.juju_series or environment.charm_versions %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Juju & Charms</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-3">
+                        {% if environment.juju_controller %}
+                        <dt class="col-sm-3">Controller</dt>
+                        <dd class="col-sm-9 font-mono">{{ environment.juju_controller }}</dd>
+                        {% endif %}
+
+                        {% if environment.juju_series %}
+                        <dt class="col-sm-3">Juju Version</dt>
+                        <dd class="col-sm-9"><span class="badge badge-info">{{ environment.juju_series }}</span></dd>
+                        {% endif %}
+
+                        {% if environment.juju_controller_stage %}
+                        <dt class="col-sm-3">Controller Stage</dt>
+                        <dd class="col-sm-9">{{ environment.juju_controller_stage }}</dd>
+                        {% endif %}
+                    </dl>
+
+                    <h6 class="text-muted mb-2">Deployed Charms</h6>
+                    {% if environment.charm_versions %}
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Charm</th>
+                                <th>Version/Channel</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for charm, version in environment.charm_versions.items %}
+                            <tr>
+                                <td>{{ charm }}</td>
+                                <td><code>{{ version }}</code></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="alert alert-info mb-0">
+                        <small>
+                            <strong>No charms deployed.</strong>
+                            {% if environment.service_primitive == 'storage' %}
+                            This is a database/storage service consumed by other environments.
+                            {% elif environment.service_primitive == 'iam' %}
+                            This is an IAM/identity service.
+                            {% else %}
+                            Charm information is extracted from terraform juju_application resources.
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Unit placement: where each unit/VM is actually running -->
+    {% if placement.vms %}
+    <div class="card mt-3">
+        <div class="card-header d-flex align-items-center">
+            <h5 class="mb-0">Unit placement ({{ placement.vms|length }})</h5>
+            <small class="text-muted ml-2">live from {{ placement.source }} · {{ placement.recorded_at|utclocal }}</small>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Unit</th>
+                        <th>VM</th>
+                        <th>Host</th>
+                        <th>Status</th>
+                        <th class="text-right">vCPUs</th>
+                        <th class="text-right">RAM</th>
+                        <th>Arch</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for vm in placement.vms %}
+                    <tr>
+                        <td class="font-mono">{{ vm.juju_unit|default:"—" }}</td>
+                        <td class="font-mono small">{{ vm.name }}</td>
+                        <td><a href="{% url 'netbox:node-detail' hostname=vm.host %}" class="font-mono">{{ vm.host }}</a></td>
+                        <td>
+                            {% if vm.status == 'ACTIVE' %}<span class="badge badge-success">{{ vm.status }}</span>
+                            {% else %}<span class="badge badge-secondary">{{ vm.status|default:"—" }}</span>{% endif %}
+                        </td>
+                        <td class="text-right">{{ vm.vcpus|default:"—" }}</td>
+                        <td class="text-right">{% if vm.ram_mb %}{{ vm.ram_mb|mb_to_human }}{% else %}—{% endif %}</td>
+                        <td><span class="badge badge-light">{{ vm.architecture|default:"—" }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Storage accessed (#47) -->
+    {% if storage_accesses %}
+    <div class="card mt-3">
+        <div class="card-header"><h5 class="mb-0">Storage accessed ({{ storage_accesses|length }})</h5></div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead><tr><th>Bucket</th><th>Cloud</th><th>Owner team</th><th>Size (GB)</th><th>Access</th></tr></thead>
+                <tbody>
+                    {% for a in storage_accesses %}
+                    <tr>
+                        <td><a href="{% url 'storage:detail' name=a.storage.name %}" class="font-mono">{{ a.storage.name }}</a></td>
+                        <td>{{ a.storage.cloud }}</td>
+                        <td>{{ a.storage.owner_team|default:"—" }}</td>
+                        <td>{{ a.storage.size_gb|floatformat:0 }}</td>
+                        <td><span class="badge badge-info">{{ a.access_type }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

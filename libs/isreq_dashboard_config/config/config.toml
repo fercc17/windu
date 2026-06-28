@@ -1,0 +1,66 @@
+# ISReq Analytics Dashboard — non-secret configuration.
+# Copy to config/config.toml and fill any FILL markers. Secrets come from the
+# environment only (ISREQ_JIRA_*, ISREQ_DB_*) — never put tokens/passwords here.
+# Values marked "resolved 2026-06-12" came from read-only Jira discovery.
+
+# --- Jira / scope -----------------------------------------------------------
+project_key = "ISREQ"                 # issue keys are ISREQ-NNN (uppercase)
+
+# --- Custom fields (instance-specific; discover via `isreq-sync --discover-fields`)
+field_area     = "customfield_13027"  # PARENT value of the "Request area" cascading select
+field_sub_area = "customfield_13027"  # CHILD value of the SAME cascading select (parent.child)
+field_pulse    = "customfield_10020"  # "Sprint"; pulse = sprint name, latest when multiple
+
+# --- Categorization tokens --------------------------------------------------
+highest_priority_name = "Highest"
+ps5_blocker_label     = "ps5-blocker"
+pr_mp_title_substring = "[PR/MP Review]"
+closed_statuses       = ["Closed", "Done", "Rejected"]   # all three count as a close
+untriaged_status      = "Untriaged"   # initial state; time-to-triage = creation -> first exit from it
+in_review_status      = "In Review"   # time-in-review = each completed spell in this status
+
+# --- Cadence / stats --------------------------------------------------------
+anchor_date    = "2026-02-09"          # week-1 Monday (first real ticket ISREQ-2)
+low_n_threshold = 5                     # below this, a time-to-close bucket is flagged low-sample
+
+# --- Region -----------------------------------------------------------------
+reference_timezone = "EMEA"            # default reference tz where a single one is needed
+
+# EMEA-anchored UTC windows; MUST cover 24h with no gap. FILL with real boundaries.
+[region_windows_utc]
+EMEA = { start = "06:00", end = "14:00" }
+AMER = { start = "14:00", end = "22:00" }
+APAC = { start = "22:00", end = "06:00" }   # wraps midnight
+
+# --- PR/MP-review visibility ------------------------------------------------
+[pr_mp]
+default_visibility = "included"         # counted in core views by default; user can toggle to hide
+
+# --- Sprint marks (overlaid on charts: orange dashed rule + caption) ---------
+# Pulse 9 is a special sprint: week 1 = roadmap, week 2 = engineering.
+# (Pulse 9 spans dashboard weeks W12-W13, verified from the data.)
+[period_marks.per_pulse]
+"IS Pulse 2026#09" = "Sprint"
+
+[period_marks.weekly]
+W12 = "Roadmap sprint"
+W13 = "Engineering sprint"
+
+# --- PagerDuty (IS Operations Alert Analytics) ------------------------------
+# A second, independent analysis co-hosted with ISReq, in its own `pd` schema,
+# read-only and sync-then-read. The API token is a SECRET and comes from the
+# environment only (PD_API_TOKEN); never put it here. The team id and API base
+# are not secret, so they live here as defaults (PD_TEAM_IDS env can override).
+[pd]
+db_schema = "pd"
+api_base  = "https://api.pagerduty.com"   # REST v2 base (account-agnostic; scoped by token)
+team_ids  = ["PQ4ZG3S"]                    # IS SRE team (canonical.pagerduty.com/teams/PQ4ZG3S)
+since     = "2026-01-01"                   # backfill alerts from this date (UTC)
+
+# EMEA-baseline UTC windows: the team sits Greece/France/Italy, so EMEA is the
+# on-shift working day (widened vs ISReq's 06-14 to the team's real ~06-16 day);
+# AMER and APAC are evening/overnight after-hours. MUST cover 24h with no gap.
+[pd.region_windows_utc]
+EMEA = { start = "06:00", end = "16:00" }
+AMER = { start = "16:00", end = "22:00" }
+APAC = { start = "22:00", end = "06:00" }   # wraps midnight

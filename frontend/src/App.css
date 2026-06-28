@@ -1,0 +1,511 @@
+/* Scaffold layout. Colours come from Pragma design tokens (var(--color-*)) so the
+   shell follows the theme pinned on <html> (currently dark) instead of hard-coded
+   greys. Token surfaces: --color-background (page), --color-background-container /
+   -layer2 (raised), --color-border-muted (lines), --color-text / -foreground-secondary. */
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+  color: var(--color-text);
+}
+
+.app__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.app__brand {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.app__tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--color-border-muted);
+  border-radius: 3px;
+  color: var(--color-foreground-secondary);
+}
+
+.app__spacer {
+  flex: 1;
+}
+
+.app__body {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  flex: 1;
+  min-height: 0;
+}
+
+.app__nav {
+  border-right: 1px solid var(--color-border-muted);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow: auto;
+}
+
+/* View controls — pinned below the page nav in the left column (the Streamlit
+   sidebar parity: cadence / scope / PR-MP / display + page-local controls). */
+.ctl {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  font-size: 0.85rem;
+}
+
+.ctl__title {
+  margin: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-foreground-secondary);
+}
+
+.ctl__group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.ctl__legend {
+  padding: 0;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.ctl__opt {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.ctl__opt input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.ctl__hint {
+  margin: 0.1rem 0 0;
+  font-size: 0.72rem;
+  color: var(--color-foreground-secondary);
+}
+
+.ctl__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.ctl__field select,
+.ctl__field input[type="range"],
+.ctl__field input[type="date"] {
+  width: 100%;
+  font: inherit;
+}
+
+.ctl__field select,
+.ctl__field input[type="date"] {
+  padding: 0.3rem 0.4rem;
+  background: var(--color-background-container);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-muted);
+  border-radius: 4px;
+}
+
+.ctl__clear {
+  align-self: flex-start;
+  margin-top: 0.2rem;
+  padding: 0.2rem 0.5rem;
+  font: inherit;
+  font-size: 0.78rem;
+  background: var(--color-background-container);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-muted);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Section header separating the ISReq and PagerDuty analyses in the nav. */
+.app__navsection {
+  margin: 0.6rem 0 0.1rem;
+  padding: 0 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-foreground-secondary);
+}
+.app__navsection:first-child {
+  margin-top: 0;
+}
+
+.app__navitem {
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.app__navitem:hover {
+  background: var(--color-background-layer2);
+}
+
+.app__navitem.is-active {
+  background: var(--color-background-container);
+  font-weight: 600;
+}
+
+.app__main {
+  padding: 1.5rem;
+  overflow: auto;
+  background: var(--color-background);
+}
+
+/* Full-dark: the main panel shares the page background (no raised grey card), so
+   it matches the nav. Surfaces that should stand out (tables, tooltips) carry
+   their own borders/tints. */
+.app__panel {
+  background: transparent;
+}
+
+.app__title {
+  margin: 0 0 0.25rem;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.app__muted {
+  color: var(--color-foreground-secondary);
+}
+
+.app__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--color-foreground-secondary);
+}
+
+.app__dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--color-foreground-secondary);
+}
+
+.app__dot--up {
+  background: #0e8420;
+}
+
+.app__dot--down {
+  background: #c7162b;
+}
+
+.app__fetch--fail {
+  color: #f0826d;
+}
+
+/* Data panel (tables + key/value until Pragma charts land). */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.panel__h {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-foreground-secondary);
+}
+
+/* Sprint-mark caption beneath period charts (matches the dashed vertical rule). */
+.panel__mark {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+  color: #e8590c;
+}
+
+.panel__tablewrap {
+  overflow: auto;
+  border: 1px solid var(--color-border-muted);
+  border-radius: 4px;
+}
+
+.panel__table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.panel__table th,
+.panel__table td {
+  text-align: left;
+  padding: 0.4rem 0.7rem;
+  border-bottom: 1px solid var(--color-border-muted);
+  white-space: nowrap;
+}
+
+.panel__table th {
+  background: var(--color-background-container);
+  font-weight: 600;
+}
+
+.panel__kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+.panel__kv dt {
+  font-size: 0.75rem;
+  color: var(--color-foreground-secondary);
+}
+
+.panel__kv dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Streamlit-style metric cards for kv sections (parity with st.metric). */
+.panel__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin: 0.25rem 0;
+}
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--color-background-container);
+  border: 1px solid var(--color-border-muted);
+  border-radius: 6px;
+}
+.metric__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-foreground-secondary);
+}
+.metric__value {
+  font-size: 1.7rem;
+  font-weight: 600;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.panel__raw summary {
+  cursor: pointer;
+  color: var(--color-foreground-secondary);
+  font-size: 0.85rem;
+}
+
+.panel__raw[open] summary {
+  margin-bottom: 0.75rem;
+}
+
+/* --- windu unified shell additions --- */
+.app__viewas {
+  background: var(--color-background-container, #1b1b1f);
+  color: var(--color-text, #eee);
+  border: 1px solid var(--color-border-muted, #333);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  margin-right: 0.75rem;
+  width: 12rem;
+}
+.app__navitem--top {
+  font-weight: 600;
+  margin-top: 0.35rem;
+}
+.app__isbadge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background: var(--color-accent, #0066cc);
+  color: #fff;
+  vertical-align: middle;
+}
+
+/* --- top-bar category tabs --- */
+.app__topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  padding: 0 1rem;
+  background: var(--color-background-container, #1b1b1f);
+  border-bottom: 1px solid var(--color-border-muted, #333);
+}
+.app__tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-foreground-secondary, #b0b0b0);
+  padding: 0.65rem 0.95rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.app__tab:hover { color: var(--color-text, #eee); }
+.app__tab.is-active {
+  color: #fff;
+  border-bottom-color: var(--color-accent, #0066cc);
+}
+
+/* --- interactive DataTable --- */
+.dt__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.dt__search {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+  background: var(--color-background-container, #1b1b1f);
+  color: var(--color-text, #eee);
+  border: 1px solid var(--color-border-muted, #333);
+  border-radius: 4px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+.dt__filter {
+  background: var(--color-background-container, #1b1b1f);
+  color: var(--color-text, #eee);
+  border: 1px solid var(--color-border-muted, #333);
+  border-radius: 4px;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.78rem;
+  max-width: 12rem;
+}
+.dt__count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--color-foreground-secondary, #b0b0b0);
+  white-space: nowrap;
+}
+.dt__th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+.dt__th:hover {
+  color: var(--color-accent, #4a90d9);
+}
+.dt__table {
+  font-size: 0.82rem;
+}
+.dt__pager {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+}
+.dt__pager button {
+  background: var(--color-background-container, #1b1b1f);
+  color: var(--color-text, #eee);
+  border: 1px solid var(--color-border-muted, #333);
+  border-radius: 4px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+.dt__pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* --- Stand up board --- */
+.su-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.su-region-btn {
+  background: var(--color-background-container, #1b1b1f); color: var(--color-foreground-secondary, #9a9aa6);
+  border: 1px solid var(--color-border-muted, #333); border-radius: 14px; padding: 0.2rem 0.7rem;
+  font-size: 0.78rem; font-weight: 600; cursor: pointer;
+}
+.su-region-btn.is-active { color: #fff; border-color: var(--color-accent, #0066cc); background: #14304f; }
+.su-region-btn__n { opacity: 0.6; font-weight: 400; }
+.su-fetch { margin-left: auto; font-size: 0.72rem; }
+
+.su-legend { margin-bottom: 0.8rem; font-size: 0.78rem; }
+.su-legend summary { cursor: pointer; color: var(--color-foreground-secondary, #b0b0b0); }
+.su-legend__t { border-collapse: collapse; margin-top: 0.4rem; }
+.su-legend__t th, .su-legend__t td { padding: 0.2rem 0.55rem; text-align: center; border: 1px solid var(--color-border-muted, #333); }
+.su-legend__role { font-weight: 700; text-align: left; }
+.su-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
+.su-swatch--green { background: #0e8420; } .su-swatch--yellow { background: #f99b11; } .su-swatch--red { background: #c7162b; }
+
+.su-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; align-items: start; }
+.su-col { background: var(--color-background-container, #1b1b1f); border: 1px solid var(--color-border-muted, #333); border-radius: 8px; padding: 0.6rem; }
+.su-col__h { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; letter-spacing: 0.03em; padding: 0.2rem 0.3rem 0.6rem; border-bottom: 1px solid var(--color-border-muted, #333); margin-bottom: 0.6rem; }
+.su-col__count { font-size: 0.72rem; color: var(--color-foreground-secondary, #b0b0b0); }
+
+.su-card { border: 1px solid var(--color-border-muted, #333); border-left-width: 3px; border-radius: 6px; padding: 0.5rem 0.6rem; margin-bottom: 0.5rem; background: var(--color-background, #161618); }
+.su-card.is-open { border-color: var(--color-accent, #0066cc); }
+.su-role-PVG { border-left-color: #c7162b; } .su-role-BVG { border-left-color: #f99b11; }
+.su-role-GEN { border-left-color: #0066cc; } .su-role-Project { border-left-color: #7764d8; } .su-role-OFF { border-left-color: #57606a; }
+.su-card__head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; width: 100%; background: none; border: none; color: inherit; cursor: pointer; padding: 0; text-align: left; font-size: 0.88rem; }
+.su-card__name { font-weight: 600; }
+.su-star { color: #f9b40c; margin-left: 0.3rem; }
+.su-mgr { font-size: 0.55rem; font-weight: 700; margin-left: 0.4rem; padding: 0.03rem 0.28rem; border-radius: 3px; background: #7764d8; color: #fff; vertical-align: middle; }
+.su-counts { display: flex; align-items: center; gap: 0.25rem; }
+.su-cnt { font-size: 0.7rem; font-weight: 700; min-width: 1.1rem; text-align: center; padding: 0.02rem 0.32rem; border-radius: 9px; color: #fff; }
+.su-cnt--red { background: #c7162b; } .su-cnt--yellow { background: #f99b11; } .su-cnt--green { background: #0e8420; }
+.su-role-tag { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.04em; padding: 0.08rem 0.4rem; border-radius: 3px; background: #2a2a30; color: #cfcfe0; white-space: nowrap; }
+
+.su-metrics { display: flex; flex-direction: column; gap: 0.1rem; margin-top: 0.4rem; }
+.su-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.66rem; color: var(--color-foreground-secondary, #9a9aa6); }
+.su-meta__win { font-weight: 700; width: 2.6rem; color: #cfcfe0; }
+
+.su-detail { margin-top: 0.55rem; border-top: 1px dashed var(--color-border-muted, #333); padding-top: 0.45rem; }
+.su-group { margin-bottom: 0.5rem; }
+.su-group__h { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: #cfcfe0; margin: 0.25rem 0 0.2rem; }
+.su-group__n { color: var(--color-foreground-secondary, #9a9aa6); font-weight: 400; }
+.su-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.su-split__h { font-size: 0.6rem; text-transform: uppercase; color: var(--color-foreground-secondary, #8a8a96); margin-bottom: 0.1rem; }
+.su-ticket { display: flex; align-items: baseline; gap: 0.35rem; padding: 0.12rem 0; font-size: 0.74rem; }
+.su-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; transform: translateY(1px); }
+.su-dot--green { background: #0e8420; } .su-dot--yellow { background: #f99b11; } .su-dot--red { background: #c7162b; }
+.su-ticket__key { font-weight: 600; white-space: nowrap; color: inherit; text-decoration: none; }
+.su-ticket__key:hover { text-decoration: underline; }
+.su-ticket__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--color-foreground-secondary, #b8b8c2); }
+.su-ticket__status { font-size: 0.6rem; color: #8a8a96; white-space: nowrap; }
+.su-tag { font-size: 0.56rem; font-weight: 700; padding: 0.02rem 0.28rem; border-radius: 3px; background: #14304f; color: #9cc4ff; white-space: nowrap; }
+.su-ribbon { font-size: 0.58rem; font-weight: 800; padding: 0.02rem 0.26rem; border-radius: 3px; color: #fff; white-space: nowrap; }
+.su-ribbon--h2 { background: #c7162b; } .su-ribbon--h1 { background: #e07000; } .su-ribbon--m { background: #b08500; }
+.su-ribbon--l1 { background: #3a6ea5; } .su-ribbon--l2 { background: #57606a; }
+.su-empty { font-size: 0.72rem; color: var(--color-foreground-secondary, #8a8a96); padding: 0.1rem 0.2rem; }

@@ -1,0 +1,405 @@
+/* IS SRE Standup Dashboard — half-screen vertical layout (~720px target, 600–960px usable) */
+:root {
+  --green: #1f8a4c;
+  --green-bg: #e3f4e9;
+  --yellow: #b8860b;
+  --yellow-bg: #fbf3da;
+  --red: #c0392b;
+  --red-bg: #fbe5e2;
+  --fg: #1c1f23;
+  --muted: #6b7280;
+  --border: #d8dce0;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+}
+
+/* Dark theme — toggled by adding `.dark` to <body> (persisted in localStorage). */
+body.dark {
+  --green: #4cc38a; --green-bg: #14301f;
+  --yellow: #d9a93a; --yellow-bg: #332b12;
+  --red: #e06c63; --red-bg: #3a1f1c;
+  --fg: #e6e8eb; --muted: #99a2ad; --border: #353b45; --bg: #14171b; --panel: #1d2128;
+}
+body.dark .region-btn,
+body.dark button.action { background: var(--panel); color: var(--fg); }
+body.dark .region-btn.active { background: #e6e8eb; color: #14171b; border-color: #e6e8eb; }
+body.dark button.action:hover { background: #262b33; }
+body.dark table.counts th { background: #262b33; }
+body.dark table.counts tr.weekend td { background: #20242b; }
+body.dark table.counts tr.pulse-total td { background: #2a2f37; }
+body.dark .ticket .badge { background: #2d2a52; color: #c3bdff; }
+body.dark code, body.dark .setup code { background: #262b33; }
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  color: var(--fg);
+  background: var(--bg);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.wrap {
+  max-width: 960px;
+  min-width: 600px;
+  margin: 0 auto;
+  padding: 12px 16px 48px;
+}
+
+/* ---- Top bar ---- */
+.topbar {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  z-index: 10;
+}
+.topbar h1 { font-size: 15px; margin: 0 8px 0 0; white-space: nowrap; }
+.region-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.region-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+button.region-btn { font: inherit; line-height: normal; }
+.region-btn.mgmt-tab { margin-left: 6px; }
+.region-btn.active { background: #1c1f23; color: #fff; border-color: #1c1f23; }
+.region-day { color: var(--muted); font-size: 12px; }
+.spacer { flex: 1 1 auto; }
+.last-fetch { color: var(--muted); font-size: 12px; white-space: nowrap; }
+button.action {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+button.action:hover { background: #f0f2f4; }
+button.action.htmx-request { opacity: .6; pointer-events: none; }
+
+/* Refresh-in-progress banner + spinner */
+.refreshing-banner .spin { display: inline-block; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Banners ---- */
+.banner {
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.banner.warn { background: var(--yellow-bg); border: 1px solid var(--yellow); color: #7a5a00; }
+.banner.error { background: var(--red-bg); border: 1px solid var(--red); color: #7a1d14; }
+
+/* ---- Setup page ---- */
+.setup { background: var(--panel); border: 1px solid var(--red); border-radius: 8px; padding: 20px; }
+.setup h2 { color: var(--red); margin-top: 0; }
+.setup code { background: #f0f2f4; padding: 1px 5px; border-radius: 4px; }
+.setup ul { line-height: 1.7; }
+
+/* ---- Open-work summary line ---- */
+.open-summary { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center;
+  margin: 10px 0 4px; padding: 8px 12px; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+.open-summary span, .open-summary .os-item { color: var(--muted); white-space: nowrap; }
+.open-summary .os-item { text-decoration: none; }
+.open-summary .os-item:hover { text-decoration: underline; }
+.open-summary strong { color: var(--fg); font-size: 14px; margin-left: 2px; }
+.open-summary .has-open strong { color: var(--red); }
+
+/* ---- Counts table ---- */
+.section-title { font-size: 13px; font-weight: 600; margin: 16px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.counts-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.pulse-range { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); }
+table.counts {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 12px;
+}
+table.counts th, table.counts td { padding: 5px 6px; text-align: right; border-bottom: 1px solid var(--border); }
+table.counts th { background: #f0f2f4; font-weight: 600; text-align: right; position: sticky; top: 0; }
+table.counts td:first-child, table.counts th:first-child { text-align: left; white-space: nowrap; }
+table.counts tr.weekend td { background: #f9f6ef; font-style: italic; }
+table.counts th.stk span { display: block; line-height: 1.05; }
+table.counts th .proj { font-weight: 600; letter-spacing: .02em; }
+table.counts tr.pulse-total td { font-weight: 600; background: #eef1f4; border-top: 2px solid var(--border); }
+table.counts tr.previous-pulse td { color: var(--muted); font-style: italic; background: #f4f6f8; }
+body.dark table.counts tr.previous-pulse td { background: #20242b; }
+table.counts tr:last-child td { border-bottom: none; }
+/* Strong divider between the ticket columns and the alert columns (#91). */
+table.counts th.div, table.counts td.div { border-left: 2px solid var(--muted); }
+/* Subtle separator between the "new" and "closed" ticket groups. */
+table.counts th.grp, table.counts td.grp { border-left: 1px solid var(--border); }
+/* Per-group subtotal columns (new total / closed total / alerts total). */
+table.counts td.sub { font-weight: 600; }
+/* Per-cell change vs the previous pulse (pulse-history MTTR/MTTA), e.g. "▲2m". */
+table.counts td .delta { font-size: 0.82em; opacity: 0.65; margin-left: 3px; white-space: nowrap; font-weight: 400; }
+/* Numbers with a per-person breakdown tooltip get a hint cursor (#91). */
+table.counts td[data-tip]:not([data-tip=""]) { cursor: help; }
+/* Alert health bands (ack/res/total/MTTR/MTTA): green within the on-call
+   standard, yellow a warning, red fatigue/too-slow. See domain/coloring.py. */
+table.counts td.lvl-green,  table.offenders td.lvl-green  { background: var(--green-bg);  color: var(--green);  font-weight: 600; }
+table.counts td.lvl-yellow, table.offenders td.lvl-yellow { background: var(--yellow-bg); color: var(--yellow); font-weight: 600; }
+table.counts td.lvl-red,    table.offenders td.lvl-red    { background: var(--red-bg);    color: var(--red);    font-weight: 600; }
+
+/* Custom hover/tap tooltip (native title tooltips don't fire on touch). */
+.tip-pop {
+  position: absolute;
+  z-index: 200;
+  background: #1c1f23;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 5px 8px;
+  border-radius: 6px;
+  white-space: pre-line;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .3);
+  pointer-events: none;
+  max-width: 260px;
+}
+body.dark table.counts th.div, body.dark table.counts td.div { border-left-color: var(--muted); }
+
+/* ---- Chips ---- */
+.region-group { margin-top: 16px; }
+.region-group > h3 { font-size: 13px; margin: 0 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid var(--border);
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 7px 10px;
+  cursor: pointer;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chip:hover { filter: brightness(0.96); }
+.chip .name { font-weight: 600; font-size: 13px; }
+/* Chips always have a light pastel role background (both themes), so chip text
+   stays dark for contrast — the win label used var(--muted), which turned light
+   grey and unreadable in dark mode. */
+.chip .meta { color: #1c1f23; font-size: 11px; display: flex; gap: 7px; align-items: baseline; }
+.chip .meta .win { font-weight: 700; color: #3a3a3a; min-width: 30px; font-size: 10px; text-transform: uppercase; }
+.chip .name .role-tag { margin-left: 6px; }
+/* On-call handover line for PVG/BVG chips (#handover). */
+.chip .handover { display: flex; gap: 8px; font-size: 10px; color: #1c1f23; flex-wrap: wrap; }
+.chip .handover .ho-from { opacity: .85; }
+.chip .handover .ho-to { font-weight: 600; }
+/* Counterpart region has nobody on the duty yet — dim it, but keep it visible so
+   the rotation reads end-to-end and the gap is obvious (#handover). */
+.chip .handover .ho-unassigned { opacity: .5; font-style: italic; font-weight: 400; }
+/* Role colors from the Google Sheets palette (chip background + darker border). */
+.chip.role-PVG { background: #cfe2f3; border-left-color: #3d85c6; }   /* light blue 3 */
+.chip.role-BVG { background: #9fc5e8; border-left-color: #2b6cb0; }   /* light blue 2 */
+.chip.role-GEN { background: #93c47d; border-left-color: #38761d; }   /* light green 1 */
+.chip.role-Project { background: #f9cb9c; border-left-color: #b45f06; } /* light orange (unspecified) */
+.chip.role-OFF { background: #ea9999; border-left-color: #cc0000; }   /* light red 2 */
+.chip[class*="role-"] .name { color: #1c1f23; }
+.role-tag { font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #1c1f23; }
+/* Operations / Project sub-group labels within a region. */
+.subgroup-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 8px 0 4px; }
+.oncall-line { font-size: 13px; color: var(--fg); margin: 4px 0 12px; }
+
+/* ---- Detail panels ---- */
+#panels { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+.panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.panel-head .name { font-weight: 600; }
+.panel-head .role-pick { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+.panel-head .role-pick select { font-size: 12px; padding: 1px 2px; }
+.panel-head .close { margin-left: auto; cursor: pointer; color: var(--muted); border: none; background: none; font-size: 16px; }
+/* Per-person refresh (#person-refresh): spins while the fetch runs (htmx-request). */
+.panel-refresh { margin-left: auto; cursor: pointer; color: var(--muted); border: none; background: none; font-size: 15px; padding: 0 4px; line-height: 1; }
+.panel-refresh:hover { color: var(--fg); }
+.panel-refresh.htmx-request { display: inline-block; animation: spin 1s linear infinite; color: var(--fg); }
+.panel-refresh:disabled { cursor: default; }
+/* Current-sprint ticket counts + live Jira links (#sprint-link). */
+.panel-sprints { font-size: 12px; color: var(--muted); margin: 2px 0 8px; }
+.panel-sprints a { color: var(--fg); text-decoration: none; padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; }
+.panel-sprints a:hover { text-decoration: underline; }
+.panel-sprints a strong { color: var(--fg); }
+/* PTO this & next week (#pto-card): amber call-out so a day-off doesn't get lost in
+   the panel — theme-aware via the --yellow vars (light + dark). */
+.panel-pto { font-size: 11px; color: var(--yellow); font-weight: 600; margin: 4px 0 8px; padding: 5px 9px; background: var(--yellow-bg); border-left: 3px solid var(--yellow); border-radius: 5px; }
+.panel-pto strong { color: var(--fg); }
+.panel-time { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 12px; color: var(--muted); margin: -2px 0 8px; }
+.panel-time .pt-col { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.panel-time .pt-head { font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; color: var(--fg); }
+.panel-time .pt-total { color: var(--fg); border-bottom: 1px solid var(--border); padding-bottom: 3px; margin-bottom: 1px; }
+.panel-time .pt-total strong { font-size: 13px; margin-left: 2px; }
+.panel-time span { white-space: nowrap; }
+/* Distractor share of open time (#distract-share): a touch of emphasis since it's a
+   derived signal, not a raw bucket like the lines above it. */
+.panel-time .pt-distract { color: var(--fg); font-weight: 600; }
+.group-title { font-size: 12px; font-weight: 600; color: var(--muted); margin: 8px 0 4px; }
+.group-title .group-count { color: var(--fg); font-weight: 700; }
+/* Touched-24h | not-touched split for WIP / Success / Distractors (#17). */
+.split { display: flex; gap: 10px; }
+.split-col { flex: 1 1 0; min-width: 0; }
+.split-head { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); margin: 2px 0 3px; border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+.ticket {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 8px;
+  border-radius: 5px;
+  margin-bottom: 3px;
+  border: 1px solid transparent;
+}
+.ticket .key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: nowrap; }
+.ticket .title { font-size: 12px; flex: 1; }
+.ticket a.key, .ticket a.title { color: inherit; text-decoration: none; }
+.ticket a.key:hover, .ticket a.title:hover { text-decoration: underline; }
+.ticket .tstatus { font-size: 10px; color: var(--muted); white-space: nowrap; text-transform: uppercase; letter-spacing: .03em; }
+.ticket .ttime { font-size: 10px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; margin-left: auto; }
+/* ISDB estimate ▸ invested (#isdb-estimate). Right-aligned like .ttime; when both
+   show, sit just after it. Turns red when invested has overrun the estimate. */
+.ticket .effort { font-size: 10px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; margin-left: auto; }
+.ticket .ttime + .effort { margin-left: 8px; }
+.ticket .effort.over { color: var(--red); font-weight: 600; }
+.ticket .badge { font-size: 10px; background: #ece9ff; color: #4b34c9; padding: 0 5px; border-radius: 4px; white-space: nowrap; }
+.ticket .badge.stale { background: var(--red-bg); color: var(--red); font-weight: 600; }
+/* Focus-toggle flag (#focus-toggle): off-focus in-progress ISReq, highlighted in
+   place so it's obvious someone is on the wrong ticket. Loud on purpose. */
+.ticket.flagged {
+  border-color: var(--red, #c0152f);
+  box-shadow: inset 4px 0 0 var(--red, #c0152f);
+  background: var(--red-bg, #fdecee);
+}
+body.dark .ticket.flagged { background: #3a1b22; }
+.ticket .flag { color: var(--red, #c0152f); font-weight: 700; flex: none; }
+/* Priority ribbon (#ribbon): H2=Highest (most urgent) → L2=Lowest. */
+.ticket .ribbon {
+  font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 4px;
+  white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-width: 20px; text-align: center; flex: none;
+}
+.ticket .ribbon-h2 { background: #c0152f; color: #fff; }
+.ticket .ribbon-h1 { background: #f3a536; color: #3a2400; }
+.ticket .ribbon-m  { background: #d6e2ee; color: #2a4a6b; }
+.ticket .ribbon-l1 { background: #eef0f2; color: #6a737d; }
+.ticket .ribbon-l2 { background: #f4f5f6; color: #99a0a8; }
+body.dark .ticket .ribbon-m  { background: #25405c; color: #bcd6f0; }
+body.dark .ticket .ribbon-l1 { background: #2a2f36; color: #aab2bd; }
+body.dark .ticket .ribbon-l2 { background: #23262b; color: #888f98; }
+.c-green { background: var(--green-bg); border-color: var(--green); }
+.c-yellow { background: var(--yellow-bg); border-color: var(--yellow); }
+.c-red { background: var(--red-bg); border-color: var(--red); }
+.empty { color: var(--muted); font-size: 12px; font-style: italic; }
+
+/* ---- Schedule modal ---- */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: flex-start; justify-content: center; padding: 30px 12px; z-index: 100; overflow: auto; }
+.modal { background: var(--panel); border-radius: 10px; padding: 16px; width: 100%; max-width: 920px; }
+.modal-head { display: flex; align-items: center; margin-bottom: 10px; }
+.modal-head h2 { margin: 0; font-size: 16px; }
+.modal-head .close { margin-left: auto; cursor: pointer; border: none; background: none; font-size: 20px; }
+table.sched { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.sched th, table.sched td { padding: 4px 5px; border-bottom: 1px solid var(--border); text-align: center; vertical-align: top; }
+table.sched td:first-child, table.sched th:first-child { text-align: left; white-space: nowrap; }
+table.sched select { font-size: 12px; padding: 1px; }
+table.sched .stk span { display: block; line-height: 1.1; }
+table.sched .sched-date { font-weight: 400; color: var(--muted); font-size: 11px; }
+.sched-scroll { overflow-x: auto; }
+table.sched tr.override-row td { border-top: 2px solid var(--border); font-weight: 600; }
+.day-note { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day-note-input { display: block; width: 90px; font-size: 10px; margin-top: 2px; padding: 1px 3px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg); color: var(--fg); }
+.day-note-input::placeholder { color: var(--muted); opacity: .6; }
+/* Per-date day notes span this + next week (#day-notes). */
+table.sched tr.week-sep td { background: var(--bg-alt, rgba(0,0,0,.04)); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); padding: 3px 5px; }
+table.sched tr.next-week .ro-role { font-size: 11px; color: var(--muted); }
+.override-note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+/* Per-region schedule sections (#71) */
+.sched-region { margin-bottom: 14px; }
+.sched-region > h3 { font-size: 12px; margin: 10px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+
+/* Spreadsheet paste box (#71) */
+.paste-box { margin-bottom: 12px; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+.paste-box > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.paste-hint { font-size: 11px; color: var(--muted); margin: 6px 0; }
+.paste-box textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); resize: vertical; }
+.paste-box form button { margin-top: 6px; }
+.roster-add { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.roster-add input { padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; font-size: 12px; }
+.roster-add input[name="name"] { flex: 1 1 120px; }
+.roster-add input[name="email"] { flex: 2 1 180px; }
+.roster-add input[name="github_login"] { flex: 1 1 130px; }
+.roster-email { color: var(--muted); font-size: 11px; }
+.roster-gh { font-size: 11px; }
+.roster-gh .muted { color: var(--muted); font-style: italic; }
+.banner.ok { background: var(--green-bg); border: 1px solid var(--green); color: var(--green); }
+.paste-summary ul { margin: 6px 0 0; padding-left: 18px; }
+.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+
+/* ---- Colour-rule legend (#143) ---- */
+.legend-intro { font-size: 13px; color: var(--fg); margin: 0 0 12px; line-height: 1.7; }
+.sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; vertical-align: middle; margin: 0 1px 0 4px; }
+.sw-green { background: var(--green); } .sw-red { background: var(--red); } .sw-yellow { background: var(--yellow); }
+.legend-scroll { overflow-x: auto; }
+table.legend { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.legend th, table.legend td { border: 1px solid var(--border); padding: 6px 9px; text-align: center; }
+table.legend thead th { background: var(--bg); font-weight: 600; }
+table.legend th.role { text-align: left; font-weight: 700; white-space: nowrap; }
+.sw-cell { font-weight: 600; }
+.sw-cell.sw-green { background: var(--green-bg); color: var(--green); }
+.sw-cell.sw-red { background: var(--red-bg); color: var(--red); }
+.sw-cell.sw-yellow { background: var(--yellow-bg); color: var(--yellow); }
+.sw-label { text-transform: capitalize; }
+.distractor-tag { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; opacity: .85; margin-top: 2px; }
+.legend-subhead { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); margin: 16px 0 6px; }
+.legend-notes { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: 14px 0 0; padding-left: 18px; }
+.legend-notes li { margin-bottom: 4px; }
+
+/* ---- Weekend on-call recap (#145) ---- */
+.weekend-recap { font-size: 13px; margin: 0 0 12px; }
+.weekend-recap > summary { cursor: pointer; color: var(--fg); }
+/* Stack the recap header onto separate lines (#recap-hours): the headline, then the
+   MTTA/MTTR and time/hours sub-lines indented under the disclosure marker. */
+.weekend-recap > summary .recap-line { display: block; }
+.weekend-recap > summary .recap-sub { margin-left: 1.1em; color: var(--muted); line-height: 1.6; }
+.weekend-recap .recap-open { color: var(--red); font-weight: 600; }
+/* Off-hours on-call burden (#recap-hours): alerts fired outside 09:00–17:00 local. */
+.weekend-recap .recap-off { color: var(--red); font-weight: 600; }
+.recap-moon { font-size: 11px; }
+.recap-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.recap-list li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px solid var(--border); }
+.recap-list li a { color: var(--fg); text-decoration: none; }
+.recap-list li a:hover { text-decoration: underline; }
+.recap-list li.open a, .recap-list li.open { color: var(--red); }
+.recap-meta { color: var(--muted); white-space: nowrap; font-size: 12px; }
+.recap-list li.open .recap-meta { color: var(--red); font-weight: 600; }
+.recap-empty { color: var(--muted); margin: 8px 0 0; }
+
+/* ---- Repeat-offender alerts (#146) ---- */
+table.offenders th, table.offenders td { text-align: left; }
+table.offenders .off-count { text-align: center; font-weight: 700; width: 2.5em; }
+table.offenders .off-recent { text-align: center; color: var(--muted); width: 2.5em; }
+table.offenders .aging-age { text-align: center; font-weight: 700; white-space: nowrap; }
+table.offenders .off-handlers { color: var(--muted); font-size: 12px; }
+table.offenders td a { color: var(--fg); text-decoration: none; }
+table.offenders td a:hover { text-decoration: underline; }
+.offenders-note { font-size: 12px; color: var(--muted); margin: 12px 0 0; }

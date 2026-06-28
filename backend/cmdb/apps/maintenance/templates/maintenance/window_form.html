@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Maintenance mode — {{ target }}{% endblock %}
+
+{% block content %}
+<div class="mt-3">
+  <h3>
+    Maintenance mode —
+    <span class="badge badge-secondary text-uppercase">{{ scope }}</span>
+    <span class="font-mono">{{ target }}</span>
+  </h3>
+  <p class="text-muted">
+    {% if scope == 'environment' %}
+      Silences alerts for this single juju model via COS / Alertmanager
+      (PagerDuty windows are cloud-service-scoped and can't target one model).
+    {% elif scope == 'cloud' %}
+      Silences the whole cloud's PagerDuty service for the window — affects every
+      environment on this cloud.
+    {% else %}
+      Silences the node's cloud PagerDuty service — affects every juju model placed
+      on this node.
+    {% endif %}
+    {% if scope != 'environment' %}<br>
+      <small>Note: alert silencing activates once <code>PAGERDUTY_WRITE_TOKEN</code> is configured;
+      until then the window is recorded but no silence is created.</small>
+    {% else %}<br>
+      <small>Note: alert silencing activates once <code>COS_ALERTMANAGER_URL</code> is configured;
+      until then the window is recorded but no silence is created.</small>
+    {% endif %}
+  </p>
+
+  <div class="row">
+    <div class="col-md-6">
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+          <label>Starts at (UTC)</label>
+          {{ form.starts_at }}
+          {% for e in form.starts_at.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>Ends at (UTC)</label>
+          {{ form.ends_at }}
+          {% for e in form.ends_at.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          {{ form.reason }}
+          {% for e in form.reason.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+        <fieldset class="form-group">
+          <legend class="col-form-label">Notifications</legend>
+          <div class="form-check">
+            {{ form.notify_pagerduty }}
+            <label class="form-check-label">
+              {% if scope == 'environment' %}COS / Alertmanager silence{% else %}{{ form.notify_pagerduty.label }}{% endif %}
+            </label>
+          </div>
+          <div class="form-check">{{ form.notify_mattermost }} <label class="form-check-label">{{ form.notify_mattermost.label }}</label></div>
+          <div class="form-check">{{ form.notify_email }} <label class="form-check-label">{{ form.notify_email.label }}</label></div>
+        </fieldset>
+        {% for e in form.non_field_errors %}<div class="alert alert-danger">{{ e }}</div>{% endfor %}
+        <button type="submit" class="btn btn-primary">Create maintenance window</button>
+      </form>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          {% if scope == 'environment' %}This juju model{% else %}Blast radius — affected environments{% endif %}
+          <span class="badge badge-secondary">{{ affected|length }}</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>Environment</th><th>Team</th><th>Criticality</th></tr></thead>
+            <tbody>
+              {% for env in affected %}
+              <tr>
+                <td><a href="{% url 'environment-detail' name=env.name %}">{{ env.name }}</a></td>
+                <td>{{ env.team|default:"—" }}</td>
+                <td>{{ env.criticality_tier|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-muted">No environments in scope.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

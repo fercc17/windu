@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ node.hostname }} — Resilience{% endblock %}
+
+{% block content %}
+<div class="mt-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb bg-light">
+      <li class="breadcrumb-item"><a href="/clouds/{{ node.cloud }}/">{{ node.cloud }}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'netbox:node-detail' hostname=node.hostname %}">{{ node.hostname }}</a></li>
+      <li class="breadcrumb-item active">Resilience</li>
+    </ol>
+  </nav>
+
+  <h3 class="font-mono">{{ node.hostname }} — resilience</h3>
+  <p>
+    Uplink redundancy:
+    {% if node.uplink_redundancy %}<span class="badge badge-success">redundant (≥2 switches)</span>
+    {% else %}<span class="badge badge-secondary">unknown / single-homed</span>{% endif %}
+  </p>
+
+  <div class="card mb-4">
+    <div class="card-header">Switch uplinks <span class="badge badge-secondary">{{ uplinks|length }}</span></div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Switch</th><th>Node interface</th><th>Switch port</th></tr></thead>
+        <tbody>
+          {% for u in uplinks %}
+          <tr>
+            <td class="font-mono">{{ u.switch_hostname }}</td>
+            <td class="font-mono">{{ u.interface_name }}</td>
+            <td class="font-mono">{{ u.port_name }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="text-muted">No uplink data (Netbox holds no cable data — see netbox-audit.md §3).</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Switch blast radius — other nodes on the same switch(es)</div>
+    <div class="card-body">
+      {% for switch, nodes in by_switch.items %}
+      <h6 class="font-mono">{{ switch }} <span class="badge badge-secondary">{{ nodes|length }} other node(s)</span></h6>
+      <ul>
+        {% for n in nodes %}
+        <li><a href="{% url 'netbox:node-detail' hostname=n.hostname %}" class="font-mono">{{ n.hostname }}</a></li>
+        {% endfor %}
+      </ul>
+      {% empty %}
+      <p class="text-muted mb-0">No shared-switch data available — switch graph is empty until Netbox carries cable data.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

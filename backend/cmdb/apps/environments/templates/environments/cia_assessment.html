@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}CIA Assessment - IS-CMDB{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>CIA Assessment Dashboard</h1>
+    <span class="badge badge-primary badge-lg">{{ total_envs }} Environments</span>
+</div>
+
+<p class="text-muted mb-4">
+    Risk analysis based on CIA (Confidentiality, Integrity, Availability) assessment data from environment definitions.
+</p>
+
+<!-- High Risk Environments Alert -->
+{% if high_risk %}
+<div class="alert alert-danger">
+    <h5 class="alert-heading">⚠️ High Risk Environments: {{ high_risk|length }}</h5>
+    <p class="mb-2">Tier 1 (Critical) + PII data + Production + Active</p>
+    <small class="text-muted">
+        {% for env in high_risk|slice:":5" %}
+            <a href="{% url 'environment-detail' env.name %}" class="text-dark font-weight-bold">{{ env.name }}</a>{% if not forloop.last %}, {% endif %}
+        {% endfor %}
+        {% if high_risk|length > 5 %}... and {{ high_risk|length|add:"-5" }} more{% endif %}
+    </small>
+</div>
+{% endif %}
+
+<!-- Missing CIA Data Warning -->
+{% if missing_cia > 0 %}
+<div class="alert alert-warning">
+    <strong>⚠️ {{ missing_cia }} active environments</strong> are missing CIA assessment data (criticality tier, data classification, or owner).
+</div>
+{% endif %}
+
+<div class="row mb-4">
+    <!-- Criticality Tiers -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">By Criticality Tier</h5>
+            </div>
+            <div class="card-body">
+                {% for tier_stat in tier_stats %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">
+                            <span class="badge badge-{% if tier_stat.tier == 1 %}danger{% elif tier_stat.tier == 2 %}warning{% else %}secondary{% endif %}">
+                                Tier {{ tier_stat.tier }}
+                            </span>
+                            {{ tier_stat.name }}
+                        </h6>
+                        <span class="badge badge-dark">
+                            {{ tier_stat.count }} ({{ tier_stat.prod_count }} prod)
+                        </span>
+                    </div>
+                    <button class="btn btn-sm btn-link p-0" type="button"
+                            data-toggle="collapse"
+                            data-target="#tier{{ tier_stat.tier }}-envs">
+                        Show environments
+                    </button>
+                    <a href="/?criticality_tier={{ tier_stat.tier }}" class="btn btn-sm btn-outline-primary ml-2">
+                        Filter list view
+                    </a>
+
+                    <div class="collapse mt-2" id="tier{{ tier_stat.tier }}-envs">
+                        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-sm table-hover">
+                                <thead class="thead-light sticky-top">
+                                    <tr>
+                                        <th>Environment</th>
+                                        <th>Type</th>
+                                        <th>Region</th>
+                                        <th>Owner</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for env in tier_stat.environments %}
+                                    <tr>
+                                        <td><a href="{% url 'environment-detail' env.name %}">{{ env.name }}</a></td>
+                                        <td><span class="badge badge-info">{{ env.env_type|default:"—" }}</span></td>
+                                        <td>{{ env.region|upper|default:"—" }}</td>
+                                        <td>{{ env.owner|default:"—" }}</td>
+                                        <td><span class="badge badge-{% if env.status == 'active' %}success{% else %}secondary{% endif %}">{{ env.status }}</span></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Classification -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">By Data Classification</h5>
+            </div>
+            <div class="card-body">
+                {% for dc_stat in data_class_stats %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">
+                            <span class="badge badge-{% if dc_stat.classification == 'PII' %}danger{% elif dc_stat.classification == 'INTERNAL' %}warning{% else %}success{% endif %}">
+                                {{ dc_stat.classification }}
+                            </span>
+                        </h6>
+                        <span class="badge badge-dark">
+                            {{ dc_stat.count }} ({{ dc_stat.critical_count }} tier 1)
+                        </span>
+                    </div>
+                    <button class="btn btn-sm btn-link p-0" type="button"
+                            data-toggle="collapse"
+                            data-target="#dc-{{ dc_stat.classification|lower }}-envs">
+                        Show environments
+                    </button>
+                    <a href="/?data_classification={{ dc_stat.classification|lower }}" class="btn btn-sm btn-outline-primary ml-2">
+                        Filter list view
+                    </a>
+
+                    <div class="collapse mt-2" id="dc-{{ dc_stat.classification|lower }}-envs">
+                        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-sm table-hover">
+                                <thead class="thead-light sticky-top">
+                                    <tr>
+                                        <th>Environment</th>
+                                        <th>Type</th>
+                                        <th>Tier</th>
+                                        <th>Owner</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for env in dc_stat.environments %}
+                                    <tr>
+                                        <td><a href="{% url 'environment-detail' env.name %}">{{ env.name }}</a></td>
+                                        <td><span class="badge badge-info">{{ env.env_type|default:"—" }}</span></td>
+                                        <td>
+                                            {% if env.criticality_tier %}
+                                            <span class="badge badge-{% if env.criticality_tier == 1 %}danger{% elif env.criticality_tier == 2 %}warning{% else %}secondary{% endif %}">
+                                                Tier {{ env.criticality_tier }}
+                                            </span>
+                                            {% else %}—{% endif %}
+                                        </td>
+                                        <td>{{ env.owner|default:"—" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- SLO Levels -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">By SLO Level</h5>
+            </div>
+            <div class="card-body">
+                {% if slo_stats %}
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>SLO Level</th>
+                            <th>Count</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in slo_stats %}
+                        <tr>
+                            <td><code>{{ stat.slo_level }}</code></td>
+                            <td><span class="badge badge-primary">{{ stat.count }}</span></td>
+                            <td>
+                                <a href="/?slo_level={{ stat.slo_level }}" class="btn btn-sm btn-outline-primary">
+                                    Filter
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted mb-0">No SLO levels defined</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Compliance Scope -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0">By Compliance Scope</h5>
+            </div>
+            <div class="card-body">
+                {% if compliance_stats %}
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Regulation</th>
+                            <th>Environments</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in compliance_stats %}
+                        <tr>
+                            <td>
+                                <code>{{ stat.scope }}</code>
+                                <button class="btn btn-sm btn-link p-0 ml-2" type="button"
+                                        data-toggle="collapse"
+                                        data-target="#compliance-{{ forloop.counter }}">
+                                    (show)
+                                </button>
+                            </td>
+                            <td><span class="badge badge-warning">{{ stat.count }}</span></td>
+                        </tr>
+                        <tr class="collapse" id="compliance-{{ forloop.counter }}">
+                            <td colspan="2">
+                                <div style="max-height: 200px; overflow-y: auto;">
+                                    {% for env in stat.environments %}
+                                    <a href="{% url 'environment-detail' env.name %}" class="badge badge-secondary mr-1">
+                                        {{ env.name }}
+                                        {% if env.criticality_tier == 1 %}🔴{% endif %}
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted mb-0">No compliance scopes defined</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.badge-lg {
+    font-size: 1.1rem;
+    padding: 0.5rem 0.75rem;
+}
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+</style>
+{% endblock %}

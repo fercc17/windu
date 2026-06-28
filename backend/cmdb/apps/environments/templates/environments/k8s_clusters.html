@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}PS6 ManSol K8s - IS-CMDB{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h1 class="mb-0">PS6 ManSol K8s</h1>
+  <span class="badge badge-secondary">{{ total }}</span>
+</div>
+<p class="text-muted">
+  Kubernetes clusters and the juju models inside them. Models come from the
+  cluster's inline <code>k8s_models</code> and from <code>container_model</code>
+  environments that point at the cluster. The juju controller is the dependency link.
+</p>
+
+<form method="get" class="form-inline mb-3">
+  <label class="mr-2">Cloud</label>
+  <select name="cloud" class="form-control form-control-sm mr-2" onchange="this.form.submit()">
+    {% for c in clouds %}
+    <option value="{{ c.value }}" {% if c.value == active_cloud %}selected{% endif %}>{{ c.name }}</option>
+    {% endfor %}
+  </select>
+  <noscript><button class="btn btn-sm btn-primary">Filter</button></noscript>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover table-striped">
+    <thead class="thead-light">
+      <tr>
+        {% for col in columns %}
+        <th {% if col.num %}class="text-right"{% endif %}>
+          <a class="text-reset text-decoration-none"
+             href="?cloud={{ active_cloud }}&amp;sort={{ col.key }}&amp;dir={% if sort == col.key and dir == 'asc' %}desc{% else %}asc{% endif %}">
+            {{ col.label }}{% if sort == col.key %} {% if dir == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+          </a>
+        </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="font-mono">
+          <a href="{% url 'k8s-cluster-detail' name=r.name %}">{{ r.name }}</a>
+          {% if r.mansol %}<span class="badge badge-warning" title="BootStack-managed (ManSol)">ManSol</span>{% endif %}
+        </td>
+        <td>{{ r.cloud|default:"—" }}</td>
+        <td class="font-mono small">{{ r.controller|default:"—" }}</td>
+        <td>{{ r.managed_by|default:"—" }}</td>
+        <td>{{ r.cp|default:"—" }}</td>
+        <td class="small">{{ r.workers|default:"—" }}</td>
+        <td class="text-right">{{ r.model_count }}</td>
+        <td class="small">
+          {% for m in r.inline %}<span class="badge badge-light border" title="inline k8s_model">{{ m }}</span> {% endfor %}
+          {% for e in r.containers %}<a href="{% url 'environment-detail' name=e.name %}" class="badge badge-info" title="container_model">{{ e.name }}</a> {% endfor %}
+          {% if not r.inline and not r.containers %}<span class="text-muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="text-muted">No K8s clusters found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

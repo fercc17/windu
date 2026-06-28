@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Lifecycle Timeline - IS-CMDB{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Environment Lifecycle Timeline</h1>
+
+<p class="lead mb-4">Track environment creation, decommissioning trends, and age distribution.</p>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card border-success">
+            <div class="card-body">
+                <h5 class="card-title">Active Environments</h5>
+                <h2 class="text-success">{{ total_active }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h5 class="card-title">Decommissioning</h5>
+                <h2 class="text-warning">{{ decommissioning_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total Decommissioned</h5>
+                <h2>{{ total_decommissioned }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Creation Trend -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Environments Created (Last 12 Months)</h5>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Month</th>
+                        <th class="text-right">Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in created_by_month %}
+                    <tr>
+                        <td>{{ item.month|date:"Y-m" }}</td>
+                        <td class="text-right">{{ item.count }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="2" class="text-muted">No data</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Decommissioned Trend -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Environments Decommissioned (Last 12 Months)</h5>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Month</th>
+                        <th class="text-right">Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in decommissioned %}
+                    <tr>
+                        <td>{{ item.month|date:"Y-m" }}</td>
+                        <td class="text-right">{{ item.count }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="2" class="text-muted">No data</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Age Distribution -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Age Distribution (Active Environments)</h5>
+        <div class="row mt-3">
+            {% for bucket, count in age_buckets.items %}
+            <div class="col-md-4 mb-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <p class="mb-1"><strong>{{ bucket }}</strong></p>
+                        <h3>{{ count }}</h3>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Decommissioning Pipeline -->
+{% if decommissioning %}
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Decommissioning Pipeline</h5>
+        <div class="table-responsive mt-3">
+            <table class="table table-sm table-striped">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Environment</th>
+                        <th>Type</th>
+                        <th>Owner</th>
+                        <th>Team</th>
+                        <th>Region</th>
+                        <th>End Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for env in decommissioning %}
+                    <tr>
+                        <td><a href="/model/{{ env.name }}/">{{ env.name }}</a></td>
+                        <td><span class="badge badge-secondary">{{ env.env_type }}</span></td>
+                        <td>{{ env.owner|default:"-" }}</td>
+                        <td>{{ env.team|default:"-" }}</td>
+                        <td>{{ env.region|default:"-" }}</td>
+                        <td>{{ env.end_date|date:"Y-m-d"|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Newest and Oldest -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5>Newest Environments</h5>
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for env in newest %}
+                            <tr>
+                                <td><a href="/model/{{ env.name }}/">{{ env.name }}</a></td>
+                                <td>{{ env.created_at|date:"Y-m-d" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5>Oldest Environments</h5>
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for env in oldest %}
+                            <tr>
+                                <td><a href="/model/{{ env.name }}/">{{ env.name }}</a></td>
+                                <td>{{ env.created_at|date:"Y-m-d" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+/* Minimal reset on top of Pragma's base styles (which main.tsx imports). */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+}

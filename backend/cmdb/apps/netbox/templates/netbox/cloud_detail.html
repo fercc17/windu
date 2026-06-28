@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}{{ slug }} — Cloud{% endblock %}
+
+{% block content %}
+<div class="mt-3">
+
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb bg-light">
+      <li class="breadcrumb-item"><a href="{% url 'netbox:cloud-list' %}">Clouds</a></li>
+      <li class="breadcrumb-item active">{{ slug }}</li>
+    </ol>
+  </nav>
+
+  {% if incomplete_count %}
+  <div class="alert alert-warning" role="alert">
+    ⚠️ {{ incomplete_count }} node{{ incomplete_count|pluralize }} in this cloud
+    {{ incomplete_count|pluralize:"has,have" }} incomplete physical data
+    (&lt; 80% of interfaces cabled in Netbox) — resilience / blast-radius views
+    may be unreliable.
+  </div>
+  {% endif %}
+
+  <div class="d-flex align-items-center mb-3">
+    <h3 class="mb-0 font-mono">{{ slug }}</h3>
+    {% if summary.status == 'decommissioning' %}<span class="badge badge-danger ml-3">{{ summary.status }}</span>
+    {% elif summary.status == 'active' %}<span class="badge badge-success ml-3">{{ summary.status }}</span>
+    {% else %}<span class="badge badge-secondary ml-3">{{ summary.status }}</span>{% endif %}
+    <a href="{% url 'maintenance:window-new-cloud' slug=slug %}"
+       class="btn btn-sm btn-outline-warning ml-auto">🔧 Maintenance mode</a>
+  </div>
+
+  <div class="row mb-2">
+    <div class="col"><strong>Region:</strong> {{ summary.region|default:"—" }}</div>
+    <div class="col"><strong>Provider:</strong> {{ summary.provider }}</div>
+    <div class="col"><strong>Main arch:</strong> {{ main_arch }}</div>
+    <div class="col"><strong>Cloud nodes:</strong> {{ summary.cloud_node_count }}</div>
+    <div class="col"><strong>Net equipment:</strong> {{ summary.equipment_count }}</div>
+    <div class="col"><strong>Environments:</strong> {{ summary.environment_count }}</div>
+  </div>
+
+  {% if aggregate_counts %}
+  <div class="mb-3">
+    <strong>Host aggregates:</strong>
+    {% for a in aggregate_counts %}
+    <span class="badge badge-info">{{ a.host_aggregate }} <span class="badge badge-light">{{ a.count }}</span></span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">Capacity by architecture <small class="text-muted">— Max / Used / Available</small></div>
+    <div class="card-body">
+      <p class="text-muted small mb-2">Figures are not collected yet — values are shown as “—”.</p>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered mb-0">
+          <thead class="thead-light">
+            <tr>
+              <th rowspan="2">Architecture</th>
+              {% for label in capacity_metrics %}<th colspan="3" class="text-center">{{ label }}</th>{% endfor %}
+            </tr>
+            <tr>
+              {% for label in capacity_metrics %}
+              <th class="text-right">Max</th><th class="text-right">Used</th><th class="text-right">Avail</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in arch_capacity %}
+            <tr>
+              <td>{{ row.arch }}{% if row.is_main %} <span class="badge badge-info">main</span>{% endif %}</td>
+              {% for m in row.capacity %}
+              <td class="text-right">{{ m.max|default_if_none:"—" }}</td>
+              <td class="text-right">{% if m.used_pct is None %}—{% else %}{{ m.used_pct }}%{% endif %}</td>
+              <td class="text-right">{{ m.available|default_if_none:"—" }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Nodes <span class="badge badge-secondary">{{ nodes|length }}</span></div>
+    <div class="card-body p-0">
+      <table class="table table-sm table-hover mb-0">
+        <thead><tr><th>Hostname</th><th>Site</th><th>Rack</th><th>Host aggr</th><th>Role</th><th>Status</th><th>Completeness</th></tr></thead>
+        <tbody>
+          {% for node in nodes %}
+          <tr>
+            <td><a href="{% url 'netbox:node-detail' hostname=node.hostname %}" class="font-mono">{{ node.hostname }}</a></td>
+            <td>{{ node.site }}</td>
+            <td>{{ node.rack|default:"—" }}</td>
+            <td>{% if node.host_aggregate %}<span class="badge badge-info">{{ node.host_aggregate }}</span>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+            <td>{{ node.role }}</td>
+            <td>{{ node.status }}</td>
+            <td>
+              {% if node.completeness_band == 'green' %}<span class="badge badge-success">{% widthratio node.physical_completeness 1 100 %}%</span>
+              {% elif node.completeness_band == 'amber' %}<span class="badge badge-warning">{% widthratio node.physical_completeness 1 100 %}%</span>
+              {% else %}<span class="badge badge-danger">{% widthratio node.physical_completeness 1 100 %}%</span>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-muted">No physical nodes mapped to this cloud.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">
+      Stakeholders <span class="badge badge-secondary">{{ stakeholders|length }}</span>
+      {% if cloud_decommissioning %}<span class="badge badge-danger float-right">decommissioning — stakeholder list must not be empty</span>{% endif %}
+    </div>
+    <div class="card-body">
+      <table class="table table-sm">
+        <thead><tr><th>Name</th><th>Email</th><th>Added</th><th></th></tr></thead>
+        <tbody>
+          {% for s in stakeholders %}
+          <tr>
+            <td>{{ s.name }}</td>
+            <td class="font-mono">{{ s.email }}</td>
+            <td>{{ s.added_at|date:"Y-m-d" }}</td>
+            <td>
+              <form method="post" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="remove">
+                <input type="hidden" name="stakeholder_id" value="{{ s.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0">remove</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted">No stakeholders recorded.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <form method="post" class="form-inline mt-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        <input type="text" name="name" placeholder="Name" class="form-control form-control-sm mr-2" required>
+        <input type="email" name="email" placeholder="email@canonical.com" class="form-control form-control-sm mr-2" required>
+        <button type="submit" class="btn btn-sm btn-primary">Add stakeholder</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">
+      Environments
+      <span class="badge badge-secondary">{{ env_total }}</span>
+      {% if env_truncated %}
+        <span class="float-right">
+          showing first {{ env_cap }} —
+          <a href="/?cloud={{ slug }}">view all {{ env_total }} &raquo;</a>
+        </span>
+      {% endif %}
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm table-hover mb-0">
+        <thead><tr><th>Name</th><th>Type</th><th>Team</th><th>Status</th><th>Primary node</th></tr></thead>
+        <tbody>
+          {% for env in environments %}
+          <tr>
+            <td><a href="{% url 'environment-detail' name=env.name %}">{{ env.name }}</a></td>
+            <td>{{ env.env_type }}</td>
+            <td>{{ env.team|default:"—" }}</td>
+            <td>{{ env.status }}</td>
+            <td class="font-mono">{% if env.primary_node_id %}{{ env.primary_node.hostname }}{% else %}—{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-muted">No environments in this cloud.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

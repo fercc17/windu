@@ -1,0 +1,5 @@
+account_id,display_name,region
+# One row per Jira assignee. region MUST be one of AMER, EMEA, APAC.
+# Unmapped / absent assignees resolve to "Unknown" (never guessed).
+5b10ac8d82e05b22cc7d4ef5,Ada Lovelace,EMEA
+557058:f8b1c2d3-0000-0000-0000-aaaabbbbcccc,Grace Hopper,AMER

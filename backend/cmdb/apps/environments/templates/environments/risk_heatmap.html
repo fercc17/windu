@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Risk Heatmap - IS-CMDB{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Risk Heatmap</h1>
+
+<p class="lead mb-4">Matrix of criticality tier vs data classification to identify high-risk environment clusters.</p>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card border-danger">
+            <div class="card-body">
+                <h5 class="card-title">High Risk (Tier 1 + PII)</h5>
+                <h2 class="text-danger">{{ high_risk_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h5 class="card-title">Missing Runbooks</h5>
+                <h2 class="text-warning">{{ high_risk_no_runbook_count }}</h2>
+                <small class="text-muted">Of {{ high_risk_count }} high-risk envs</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Missing CIA Data</h5>
+                <h2>{{ missing_data_count }}</h2>
+                <small class="text-muted">Active environments</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Heatmap Matrix -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Risk Matrix: Criticality Tier × Data Classification</h5>
+        <div class="table-responsive mt-3">
+            <table class="table table-bordered">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Tier</th>
+                        {% for classification in classifications %}
+                        <th class="text-center">{{ classification|upper }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in heatmap_data %}
+                    <tr>
+                        <td>
+                            <strong>
+                            {% if row.tier == 1 %}Tier 1 (Critical)
+                            {% elif row.tier == 2 %}Tier 2 (Important)
+                            {% elif row.tier == 3 %}Tier 3 (Best Effort)
+                            {% else %}Unknown
+                            {% endif %}
+                            </strong>
+                        </td>
+                        {% for cell in row.cells %}
+                        <td class="text-center {% if row.tier == 1 and cell.classification == 'pii' %}bg-danger text-white{% elif row.tier == 1 or cell.classification == 'pii' %}bg-warning{% elif cell.count > 0 %}bg-light{% endif %}">
+                            <h4 class="mb-0">{{ cell.count }}</h4>
+                            {% if cell.count > 0 %}
+                            <small>
+                                <a href="#" data-toggle="modal" data-target="#modal-{{ row.tier }}-{{ cell.classification }}">
+                                    View →
+                                </a>
+                            </small>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted mt-2">
+            <small><strong>Red cells</strong> (Tier 1 + PII) are highest risk. <strong>Orange cells</strong> contain either Tier 1 or PII environments.</small>
+        </p>
+    </div>
+</div>
+
+<!-- High Risk Environments -->
+{% if high_risk_envs %}
+<div class="card">
+    <div class="card-body">
+        <h5>High Risk Environments (Tier 1 + PII + Production)</h5>
+        <div class="table-responsive mt-3">
+            <table class="table table-sm table-striped">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Environment</th>
+                        <th>Type</th>
+                        <th>Owner</th>
+                        <th>Region</th>
+                        <th>Runbook</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for env in high_risk_envs %}
+                    <tr>
+                        <td><a href="/model/{{ env.name }}/">{{ env.name }}</a></td>
+                        <td><span class="badge badge-danger">{{ env.env_type }}</span></td>
+                        <td>{{ env.owner|default:"-" }}</td>
+                        <td>{{ env.region|default:"-" }}</td>
+                        <td>
+                            {% if env.runbook_url %}
+                            <a href="{{ env.runbook_url }}" target="_blank" class="badge badge-success">Yes</a>
+                            {% else %}
+                            <span class="badge badge-warning">Missing</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<p class="mt-3 text-muted">
+    <small>Use this heatmap to prioritize runbook creation, SLO definition, and monitoring for high-risk environments.</small>
+</p>
+{% endblock %}

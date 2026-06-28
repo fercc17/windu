@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} — K8s cluster{% endblock %}
+
+{% block content %}
+<div class="mt-3">
+
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb bg-light">
+      <li class="breadcrumb-item"><a href="{% url 'k8s-clusters' %}">PS6 ManSol K8s</a></li>
+      <li class="breadcrumb-item active font-mono">{{ name }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex align-items-center mb-3">
+    <h3 class="mb-0 font-mono">{{ name }}</h3>
+    {% if mansol %}
+      <span class="badge badge-warning ml-3" title="BootStack-managed (ManSol) cluster">ManSol</span>
+    {% elif meta.kind == 'managed' %}
+      <span class="badge badge-success ml-3" title="Backed by a kubernetes_cluster env in CMDB">cluster env</span>
+    {% else %}
+      <span class="badge badge-warning ml-3" title="No kubernetes_cluster env in CMDB — synthesised from its member models">external</span>
+    {% endif %}
+    {% if meta.cloud %}<span class="badge badge-dark ml-2">{{ meta.cloud }}</span>{% endif %}
+    <span class="badge badge-secondary ml-auto">{{ model_count }} model{{ model_count|pluralize }}</span>
+  </div>
+
+  {% if meta.description %}<p class="text-muted">{{ meta.description }}</p>{% endif %}
+
+  <!-- Cluster-level metadata -->
+  <div class="card mb-4">
+    <div class="card-header">Cluster</div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3 mb-2"><strong>Cloud</strong><br>{{ meta.cloud|default:"—" }}</div>
+        <div class="col-md-3 mb-2"><strong>Juju controller</strong><br><span class="font-mono small">{{ meta.controller|default:"—" }}</span></div>
+        <div class="col-md-3 mb-2"><strong>Managed by</strong><br>{{ meta.managed_by|default:"—" }}</div>
+        <div class="col-md-3 mb-2"><strong>Stage</strong><br>{{ meta.stage|default:"—" }}</div>
+        <div class="col-md-3 mb-2"><strong>K8s distribution</strong><br>{{ meta.k8s_distribution|default:"—" }}</div>
+        <div class="col-md-3 mb-2"><strong>Control plane</strong><br>{{ meta.control_plane|default:"—" }}</div>
+        <div class="col-md-3 mb-2"><strong>Worker groups</strong><br>{{ meta.workers|default:"—" }}</div>
+        <div class="col-md-3 mb-2"><strong>Juju series</strong><br>{{ meta.juju_series|default:"—" }}</div>
+        <div class="col-md-3 mb-2"><strong>Risk group</strong><br>{{ meta.risk_group|default:"—" }}</div>
+        <div class="col-md-3 mb-2"><strong>Bastion</strong><br><span class="font-mono small">{{ meta.bastion|default:"—" }}</span></div>
+        {% if meta.status %}<div class="col-md-3 mb-2"><strong>Status</strong><br>{{ meta.status }}</div>{% endif %}
+      </div>
+      {% if clouds or owners or teams %}
+      <hr>
+      <div class="small">
+        {% if clouds %}<div><strong>Clouds in use:</strong> {% for c in clouds %}<span class="badge badge-dark">{{ c }}</span> {% endfor %}</div>{% endif %}
+        {% if owners %}<div class="mt-1"><strong>Owners:</strong> {% for o in owners %}<span class="badge badge-light border">{{ o }}</span> {% endfor %}</div>{% endif %}
+        {% if teams %}<div class="mt-1"><strong>Teams:</strong> {% for t in teams %}<span class="badge badge-light border">{{ t }}</span> {% endfor %}</div>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if cia.has_any %}
+  <!-- CIA-assessment stakeholders, rolled up from the member models -->
+  <div class="card mb-4">
+    <div class="card-header">
+      CIA stakeholders
+      <small class="text-muted">— from the models' <code>cia_assessment.asset</code>
+        ({{ cia.models_with_cia }}/{{ cia.models_total }} model{{ cia.models_total|pluralize }} carry a CIA assessment)</small>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4 mb-2">
+          <strong>Risk owners</strong>
+          <div class="mt-1">
+            {% for s in cia.risk_owners %}
+            <div><a href="mailto:{{ s.value }}" class="font-mono small">{{ s.value }}</a>
+              <span class="badge badge-light border" title="models">{{ s.count }}</span></div>
+            {% empty %}<span class="text-muted">—</span>{% endfor %}
+          </div>
+        </div>
+        <div class="col-md-4 mb-2">
+          <strong>Owners</strong>
+          <div class="mt-1">
+            {% for s in cia.owners %}
+            <div><a href="mailto:{{ s.value }}" class="font-mono small">{{ s.value }}</a>
+              <span class="badge badge-light border" title="models">{{ s.count }}</span></div>
+            {% empty %}<span class="text-muted">—</span>{% endfor %}
+          </div>
+        </div>
+        <div class="col-md-4 mb-2">
+          <strong>Custodians</strong>
+          <div class="mt-1">
+            {% for s in cia.custodians %}
+            <div><span class="badge badge-info">{{ s.value }}</span>
+              <span class="badge badge-light border" title="models">{{ s.count }}</span></div>
+            {% empty %}<span class="text-muted">—</span>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <p class="text-muted small mb-0 mt-2">Counts = number of models on this cluster attributed to each stakeholder.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if meta.quotas %}
+  <div class="card mb-4">
+    <div class="card-header">Cluster quotas</div>
+    <div class="card-body">
+      <div class="row">
+        {% for k, v in meta.quotas.items %}
+        <div class="col-md-2 mb-2"><strong>{{ k }}</strong><br>{{ v }}</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- container_model envs pointing at this cluster -->
+  <div class="card mb-4">
+    <div class="card-header">
+      Models <span class="badge badge-secondary">{{ containers|length }}</span>
+      <small class="text-muted">— <code>container_model</code> envs pointing at this cluster</small>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm table-hover table-striped js-sortable mb-0">
+        <thead class="thead-light">
+          <tr><th>Model</th><th>Owner</th><th>Team</th><th>Cloud</th><th>Stage</th><th>Juju controller</th><th>Status</th><th>Crit</th><th>Risk owner</th></tr>
+        </thead>
+        <tbody>
+          {% for e in containers %}
+          <tr>
+            <td class="font-mono"><a href="{% url 'environment-detail' name=e.name %}">{{ e.name }}</a></td>
+            <td>{{ e.owner|default:"—" }}</td>
+            <td>{{ e.team|default:"—" }}</td>
+            <td>{{ e.cloud|default:"—" }}</td>
+            <td>{{ e.env_type|default:"—" }}</td>
+            <td class="font-mono small">{{ e.juju_controller|default:"—" }}</td>
+            <td>{{ e.status|default:"—" }}</td>
+            <td>{% if e.criticality_tier %}T{{ e.criticality_tier }}{% else %}—{% endif %}</td>
+            <td class="small">{% if e.cia_risk_owner %}<a href="mailto:{{ e.cia_risk_owner }}">{{ e.cia_risk_owner }}</a>{% else %}—{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="9" class="text-muted">No container_model envs point at this cluster.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if inline %}
+  <!-- Inline k8s_models declared on the cluster env -->
+  <div class="card mb-4">
+    <div class="card-header">
+      Inline k8s models <span class="badge badge-secondary">{{ inline|length }}</span>
+      <small class="text-muted">— declared in the cluster's <code>k8s_models</code></small>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="thead-light"><tr><th>Model</th><th>Details</th></tr></thead>
+        <tbody>
+          {% for m in inline %}
+          <tr>
+            <td class="font-mono">{{ m.name|default:"—" }}</td>
+            <td class="small">
+              {% for k, v in m.meta.items %}{% if k != 'name' %}<span class="badge badge-light border">{{ k }}: {{ v }}</span> {% endif %}{% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

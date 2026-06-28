@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Maintenance windows — IS-CMDB{% endblock %}
+
+{% block content %}
+<div class="mt-3">
+  <h3>Maintenance windows</h3>
+  <table class="table table-sm table-hover">
+    <thead class="thead-light">
+      <tr><th>#</th><th>Scope</th><th>Target</th><th>Cloud</th><th>Starts</th><th>Ends</th><th>Status</th><th>Envs</th><th>Silence id</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for w in windows %}
+      <tr>
+        <td>{{ w.pk }}</td>
+        <td><span class="badge badge-secondary text-uppercase">{{ w.scope }}</span></td>
+        <td>
+          {% if w.scope == 'node' %}<a href="{% url 'netbox:node-detail' hostname=w.node.hostname %}" class="font-mono">{{ w.target_label }}</a>
+          {% elif w.scope == 'cloud' %}<a href="{% url 'netbox:cloud-detail' slug=w.cloud %}" class="font-mono">{{ w.target_label }}</a>
+          {% else %}<a href="{% url 'environment-detail' name=w.target_label %}" class="font-mono">{{ w.target_label }}</a>{% endif %}
+        </td>
+        <td>{{ w.resolved_cloud|default:"—" }}</td>
+        <td>{{ w.starts_at|utclocal }}</td>
+        <td>{{ w.ends_at|utclocal }}</td>
+        <td>
+          {% if w.status == 'cancelled' %}<span class="badge badge-secondary">{{ w.status }}</span>
+          {% elif w.status == 'active' %}<span class="badge badge-danger">{{ w.status }}</span>
+          {% elif w.status == 'scheduled' %}<span class="badge badge-warning">{{ w.status }}</span>
+          {% else %}<span class="badge badge-success">{{ w.status }}</span>{% endif %}
+        </td>
+        <td>{{ w.env_count }}</td>
+        <td class="font-mono">{{ w.pagerduty_window_id|default:w.cos_silence_id|default:"—" }}</td>
+        <td><a href="{% url 'maintenance:window-detail' pk=w.pk %}">details &raquo;</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" class="text-muted">No maintenance windows.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

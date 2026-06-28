@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% load django_tables2 %}
+{% load render_table from django_tables2 %}
+
+{% block title %}Environments - IS-CMDB{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Infrastructure Environments</h1>
+
+<!-- Region tabs -->
+<ul class="nav nav-tabs">
+    {% for tab in tabs %}
+    <li class="nav-item">
+        <a class="nav-link {% if active_tab == tab.value %}active{% endif %}"
+           href="?tab={{ tab.value }}">
+            {{ tab.name }} <span class="badge badge-secondary">{{ tab.count }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="get" class="form-inline">
+        {% for hidden in filter.form.hidden_fields %}
+            {{ hidden }}
+        {% endfor %}
+
+        <!-- Preserve tab parameter -->
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+
+        <div class="form-row w-100">
+            {% for field in filter.form.visible_fields %}
+            <div class="form-group col-md-3 mb-2">
+                <label for="{{ field.id_for_label }}" class="mr-2">{{ field.label }}</label>
+                {{ field }}
+            </div>
+            {% endfor %}
+
+            <div class="form-group col-md-12">
+                <button type="submit" class="btn btn-primary mr-2">Filter</button>
+                <a href="?tab={{ active_tab }}" class="btn btn-secondary mr-2">Clear</a>
+                <a href="{% url 'environment-export-csv' %}?{{ request.GET.urlencode }}" class="btn btn-success mr-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-download" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                    </svg>
+                    Export CSV
+                </a>
+                <a href="{% url 'environment-export-xls' %}?{{ request.GET.urlencode }}" class="btn btn-success">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-earmark-spreadsheet" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                        <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V9H3V2a1 1 0 0 1 1-1h5.5v2zM3 12v-2h2v2H3zm0 1h2v2H4a1 1 0 0 1-1-1v-1zm3 2v-2h3v2H6zm4 0v-2h3v1a1 1 0 0 1-1 1h-2zm3-3h-3v-2h3v2zm-7 0v-2h3v2H6z"/>
+                    </svg>
+                    Export XLS
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Results -->
+{% if show_results %}
+<p class="text-muted">
+    Showing {{ table.page.start_index }}–{{ table.page.end_index }} of {{ table.paginator.count }} environments
+</p>
+{% render_table table %}
+{% else %}
+<div class="alert alert-info mt-3" role="alert">
+    Pick a region tab or set filters above, then click <strong>Filter</strong> to load environments.
+    <span class="text-muted">({{ total_count }} total)</span>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<script>
+$(document).ready(function() {
+    // Function to add autocomplete to a field
+    function addAutocomplete(fieldId, fieldType) {
+        $(fieldId).autocomplete({
+            source: function(request, response) {
+                $.ajax({
+                    url: '{% url "autocomplete" %}',
+                    data: {
+                        q: request.term,
+                        field: fieldType
+                    },
+                    success: function(data) {
+                        response(data.results.map(function(item) {
+                            return {
+                                label: item.label,
+                                value: item.value
+                            };
+                        }));
+                    }
+                });
+            },
+            minLength: 2
+        });
+    }
+
+    // Add autocomplete to all text filter fields
+    addAutocomplete('#id_name', 'name');
+    addAutocomplete('#id_cia_owner', 'cia_owner');
+    addAutocomplete('#id_cia_custodian', 'cia_custodian');
+    addAutocomplete('#id_charm', 'charm');
+
+    // Custom rendering for autocomplete dropdown
+    $.ui.autocomplete.prototype._renderItem = function(ul, item) {
+        return $('<li>')
+            .append('<div style="padding: 5px;">' + item.label + '</div>')
+            .appendTo(ul);
+    };
+});
+</script>
+
+<style>
+.ui-autocomplete {
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    z-index: 1000;
+}
+.ui-menu-item {
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}

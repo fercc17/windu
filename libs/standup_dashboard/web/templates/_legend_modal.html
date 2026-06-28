@@ -1,0 +1,93 @@
+<div class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Colour rules</h2>
+      <button class="close" data-close-modal title="Close">&times;</button>
+    </div>
+
+    <p class="legend-intro">
+      How an <strong>assigned, in-flight</strong> ticket is coloured for each role:
+      <span class="sw sw-green"></span> on-task (kept) ·
+      <span class="sw sw-red"></span> off-task ·
+      <span class="sw sw-yellow"></span> needs attention.
+      A <em>Distractor</em> tag means the role pulls that ticket out of To&nbsp;Do/WIP
+      into the <strong>Distractors</strong> group.
+    </p>
+
+    <h3 class="legend-subhead">Role &times; ticket (assigned, in-flight) &amp; handled alert</h3>
+    <div class="legend-scroll">
+      <table class="legend">
+        <thead>
+          <tr>
+            <th>Role</th>
+            {% for t in types %}<th>{{ t }}</th>{% endfor %}
+            <th>Handled alert</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <th class="role">{{ row.role }}</th>
+            {% for c in row.cells %}
+            <td class="sw-cell sw-{{ c.color }}">
+              <span class="sw-label">{{ c.color }}</span>
+              {% if c.distractor %}<span class="distractor-tag">Distractor</span>{% endif %}
+            </td>
+            {% endfor %}
+            <td>
+              {% for s in row.alert_states %}
+              <span class="sw sw-{{ s.color }}"></span> {{ s.color }}{% if s.label %} &mdash; {{ s.label }}{% endif %}{% if not loop.last %}<br>{% endif %}
+              {% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="legend-subhead">Alert health (counts &amp; pulse-history tables)</h3>
+    <div class="legend-scroll">
+      <table class="legend">
+        <thead>
+          <tr>
+            <th>Column</th>
+            <th class="sw-cell sw-green">green</th>
+            <th class="sw-cell sw-yellow">yellow</th>
+            <th class="sw-cell sw-red">red</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in alert_bands %}
+          <tr>
+            <th class="role">{{ b.col }}</th>
+            <td class="sw-cell sw-green">{{ b.green }}</td>
+            <td class="sw-cell sw-yellow">{{ b.yellow }}</td>
+            <td class="sw-cell sw-red">{{ b.red }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="legend-intro">
+      <strong>cap</strong> = the on-call standard of <strong>2 alerts / 12h shift</strong>,
+      multiplied by the row's shifts and by the number of <strong>selected regions</strong>:
+      weekday <strong>{{ alert_caps.weekday }}</strong>, weekend
+      <strong>{{ alert_caps.weekend }}</strong> (4 shifts), whole pulse
+      <strong>{{ alert_caps.pulse }}</strong> (28 shifts) — per region. Ack &amp; Total
+      scale with the number of regions selected; the resolve rate and the MTTR/MTTA
+      means do not (they're rates, not volumes).
+    </p>
+
+    <ul class="legend-notes">
+      <li><strong>Alert MTTR &amp; MTTA</strong> in the <strong>pulse-history</strong> table are coloured vs the <em>previous pulse</em>, not by the fixed thresholds above: <span class="sw sw-green"></span> at or below the healthy floor (MTTR 30m, MTTA 5m), or faster than the previous pulse · <span class="sw sw-yellow"></span> within ±10% of the previous pulse · <span class="sw sw-red"></span> slower than the previous pulse. (The counts table keeps the fixed thresholds.)</li>
+      <li><strong>New columns</strong> are coloured as <em>intake</em> vs the previous pulse — fewer new tickets than last pulse is <span class="sw sw-green"></span>, more is <span class="sw sw-red"></span>, about the same <span class="sw sw-yellow"></span>. <strong>New Total</strong> additionally shows <span class="sw sw-green"></span> whenever it's at or below the historical average intake (a healthy load), regardless of the change.</li>
+      <li><strong>ISReq Days to Close</strong> is mean <em>weekdays</em> from created to done (weekends excluded), coloured: <span class="sw sw-green"></span> we closed more than we received this pulse, <em>or</em> faster than the previous pulse · <span class="sw sw-yellow"></span> within ±10% of the previous pulse · <span class="sw sw-red"></span> slower than the previous pulse. (Closing a backlog of old tickets raises the average, so out-closing intake stays green.)</li>
+      <li><strong>Closed PR/MP</strong> is coloured by keep-up vs <strong>New PR/MP Review</strong>: <span class="sw sw-green"></span> closed ≥ requested · <span class="sw sw-yellow"></span> one left behind · <span class="sw sw-red"></span> two or more behind.</li>
+      <li><strong>To&nbsp;Do / WIP / Success</strong> come from the Jira status; <strong>Distractors</strong> are tickets reclassified as off-task for the role.</li>
+      <li><strong>Success (Done)</strong> is green for everyone — except a <strong>Project</strong> engineer's non-ISDB work, which stays a red distractor even when done.</li>
+      <li><strong>Non-assigned</strong> touches: green for PVG/BVG, red for GEN/Project/OFF.</li>
+      <li><strong>Alerts</strong> are coloured by the handler's role (table above), regardless of acked/resolved. In the panel they still group as resolved &rarr; Success, open &rarr; WIP, and <strong>GEN</strong>'s alerts &rarr; Distractors. A PVG ticket in <em>In&nbsp;Review</em> is a yellow distractor.</li>
+      <li><strong>Weekend</strong> has no role — only the on-call engineer is active; everyone else is OFF (all red).</li>
+    </ul>
+  </div>
+</div>

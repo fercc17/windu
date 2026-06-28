@@ -1,0 +1,40 @@
+/*
+ * Pragma foundation for IS-CMDB (gh #130) — vendored design tokens + Ubuntu Sans.
+ * Tokens: @canonical/design-tokens@0.6.1 (dist/*.css), pinned & vendored under tokens/.
+ * Light/dark is driven by CSS color-scheme + the tokens' light-dark() values
+ * (see bridge.css, which flips color-scheme on html.theme-dark).
+ *
+ * @import rules must precede other rules, so the @layer order + imports come
+ * first, then @font-face.
+ */
+@layer ds.tokens, ds.modifiers, ds.surfaces;
+
+@import url("tokens/sets.primitive.css");
+@import url("tokens/sets.semantic.css");
+@import url("tokens/modifiers.theme.css");
+@import url("tokens/modifiers.surfaces.css");
+@import url("tokens/modifiers.criticality.css");
+@import url("tokens/modifiers.emphasis.css");
+@import url("tokens/modifiers.importance.css");
+@import url("tokens/modifiers.anticipation.css");
+@import url("tokens/modifiers.lifecycle.css");
+@import url("tokens/modifiers.release.css");
+@import url("tokens/modifiers.typography.css");
+@import url("tokens/states.css");
+
+@font-face {
+  font-family: "Ubuntu Sans"; font-weight: 400; font-style: normal; font-display: swap;
+  src: url("fonts/UbuntuSans-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Ubuntu Sans"; font-weight: 500; font-style: normal; font-display: swap;
+  src: url("fonts/UbuntuSans-Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Ubuntu Sans"; font-weight: 700; font-style: normal; font-display: swap;
+  src: url("fonts/UbuntuSans-Bold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Ubuntu Sans"; font-weight: 400; font-style: italic; font-display: swap;
+  src: url("fonts/UbuntuSans-Italic.woff2") format("woff2");
+}

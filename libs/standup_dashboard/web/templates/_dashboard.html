@@ -1,0 +1,90 @@
+<div id="dashboard">
+  {% if refreshing %}
+  <div class="banner warn refreshing-banner">
+    <span class="spin">&#10227;</span> Refreshing from Jira + PagerDuty… the page updates when it's done.
+  </div>
+  <span hx-get="/refresh/status" hx-trigger="every 2s" hx-swap="none"></span>
+  {% endif %}
+
+  {% if banner %}
+  <div class="banner {{ banner.kind }}">{{ banner.text }}</div>
+  {% endif %}
+
+  {% if oncall_name %}
+  <div class="oncall-line">&#127958; Next weekend on-call: <strong>{{ oncall_name }}</strong></div>
+  {% endif %}
+
+  {% if weekend_recap %}
+  <details class="weekend-recap">
+    <summary>
+      <span class="recap-line">Weekend recap &middot; <strong>{{ weekend_recap.oncall_name }}</strong> &middot; {{ weekend_recap.weekend_label }} &middot;
+      <strong>{{ weekend_recap.incident_count }}</strong> incident{{ 's' if weekend_recap.incident_count != 1 else '' }}
+      ({{ weekend_recap.resolved }} resolved{% if weekend_recap.open_acks %}, <span class="recap-open">{{ weekend_recap.open_acks }} open</span>{% endif %})</span>
+      <span class="recap-line recap-sub"><span title="Mean time to acknowledge (trigger&rarr;ack)">MTTA {{ weekend_recap.mtta_label }}</span>
+      &middot; <span title="Mean time to resolve (ack&rarr;resolve)">MTTR {{ weekend_recap.mttr_label }}</span></span>
+      <span class="recap-line recap-sub"><span title="Total ack&rarr;resolve time invested across the weekend's incidents"><strong>{{ weekend_recap.total_time_label }}</strong> on alerts</span>
+      &middot; <span class="recap-hours" title="Alerts that fired in business hours (09:00&ndash;17:00 the on-call's local time) vs outside, with time invested in each">{{ weekend_recap.in_hours_count }} in-hours ({{ weekend_recap.in_hours_time_label }}) &middot; <span class="recap-off">{{ weekend_recap.off_hours_count }} off-hours ({{ weekend_recap.off_hours_time_label }})</span></span></span>
+    </summary>
+    {% if weekend_recap.incidents %}
+    <ul class="recap-list">
+      {% for inc in weekend_recap.incidents %}
+      <li class="{% if not inc.resolved %}open{% endif %}">
+        {% if inc.url %}<a href="{{ inc.url }}" target="_blank" rel="noopener">{% endif %}
+        {% if inc.number %}#{{ inc.number }} {% endif %}{{ inc.title }}{% if inc.url %}</a>{% endif %}
+        <span class="recap-meta">{% if inc.off_hours %}<span class="recap-moon" title="Fired outside business hours">&#127769;</span> {% endif %}{% if inc.resolved %}&#10003; {{ inc.duration_label }}{% else %}open{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="recap-empty">Quiet weekend — no incidents handled by the on-call. &#127881;</p>
+    {% endif %}
+  </details>
+  {% endif %}
+
+  {% if pulse_history %}
+  {% include "_pulse_history.html" %}
+  {% endif %}
+
+  {% if counts_rows %}
+  {% include "_counts_table.html" %}
+  {% endif %}
+
+  {% if open_summary %}
+  <div class="open-summary" title="Still-open work across the team, recomputed each refresh">
+    <a class="os-item" href="{{ open_summary.pr_mp_url }}" target="_blank" rel="noopener" title="Open the PR/MP filter in Jira">&#128279; Open PR/MPs <strong>{{ open_summary.pr_mp }}</strong></a>
+    <a class="os-item" href="{{ open_summary.ps5_highest_url }}" target="_blank" rel="noopener" title="Open the ps5-blocker Highest filter in Jira">&#128680; Open PS5 Highest <strong>{{ open_summary.ps5_highest }}</strong></a>
+    <a class="os-item" href="{{ open_summary.highest_url }}" target="_blank" rel="noopener" title="Open the IS Highest filter in Jira">&#128293; Open IS Highest <strong>{{ open_summary.highest }}</strong></a>
+    <a class="os-item" href="{{ open_summary.ps5_url }}" target="_blank" rel="noopener" title="Open the ps5-blocker filter in Jira">&#128679; Open PS5-blocker <strong>{{ open_summary.ps5 }}</strong></a>
+    <a class="os-item" href="{{ open_summary.escalated_url }}" target="_blank" rel="noopener" title="Open the escalated ISReq tickets (status = Escalated) in Jira">&#128314; Escalated ISReq <strong>{{ open_summary.escalated }}</strong></a>
+    <a class="os-item {{ 'has-open' if open_summary.ongoing_alerts else '' }}" href="{{ open_summary.alerts_url }}" target="_blank" rel="noopener" title="Open triggered + acknowledged incidents in PagerDuty">&#128276; Ongoing alerts <strong>{{ open_summary.ongoing_alerts }}</strong></a>
+  </div>
+  {% endif %}
+
+  {% for group in chip_groups %}
+  <div class="region-group">
+    <h3>{{ group.label }} <span class="region-day">{{ group.local_day }}</span></h3>
+    {% if group.ops_chips %}
+    <div class="subgroup-title">Operations</div>
+    <div class="chips">
+      {% for chip in group.ops_chips %}{% include "_chip.html" %}{% endfor %}
+    </div>
+    {% endif %}
+    {% if group.project_chips %}
+    <div class="subgroup-title">Project</div>
+    <div class="chips">
+      {% for chip in group.project_chips %}{% include "_chip.html" %}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% if show_management and management_chips %}
+  <div class="region-group" id="management-group">
+    <h3>Management</h3>
+    <div class="chips">
+      {% for chip in management_chips %}{% include "_chip.html" %}{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+<span id="last-fetch" class="last-fetch" hx-swap-oob="true">{{ last_fetch_label }}</span>

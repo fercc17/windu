@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Owner Dashboard - IS-CMDB{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Owner Dashboard</h1>
+
+<div class="card">
+    <div class="card-body">
+        <h5>Select an Owner</h5>
+        <p class="text-muted">Choose an environment owner to view their dashboard.</p>
+
+        <div class="form-group mt-4">
+            <label for="owner-select">Owner:</label>
+            <select id="owner-select" class="form-control" onchange="if(this.value) window.location.href='/owners/' + this.value + '/';">
+                <option value="">-- Select Owner --</option>
+                {% for owner in owners %}
+                <option value="{{ owner }}">{{ owner }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <p class="mt-4 text-muted">
+            <small>Or filter the main list by owner: <a href="/">Environment List</a></small>
+        </p>
+    </div>
+</div>
+{% endblock %}

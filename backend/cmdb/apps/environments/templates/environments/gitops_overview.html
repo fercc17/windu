@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}GitOps Mapping - IS-CMDB{% endblock %}
+
+{% block content %}
+<h1 class="mb-2">GitOps Mapping</h1>
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><a class="nav-link active" href="{% url 'gitops-overview' %}">By repository</a></li>
+  <li class="nav-item"><a class="nav-link" href="{% url 'gitops-teams' %}">By team</a></li>
+</ul>
+
+<p class="lead mb-3">
+    Which environments are reconciled by GitOps, the Terraform <strong>model</strong> that
+    deploys each, and the reusable <strong>modules</strong> it consumes.
+</p>
+<p class="text-muted mb-4">
+    <code>infrastructure-services</code> (env) →
+    <code>gitops_model_management</code> →
+    <strong>model</strong> (<code>is-terraform-models</code>, …) →
+    <code>source=</code> refs →
+    <strong>modules</strong> (<code>is-terraform-modules</code>).
+    Run <code>python manage.py refresh_gitops</code> to refresh.
+</p>
+
+<!-- Summary cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">GitOps-managed</h6>
+                <h2 class="text-success mb-0">{{ managed_count }}</h2>
+                <small class="text-muted">of {{ total }} envs · {{ unmanaged_count }} not managed</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Model repos</h6>
+                <h2 class="mb-0">{{ repo_count }}</h2>
+                <small class="text-muted">distinct terraform-models repos</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Enabled</h6>
+                <h2 class="mb-0">{{ enabled_count }}</h2>
+                <small class="text-muted">management enabled</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Suspended</h6>
+                <h2 class="{% if suspended_count %}text-warning{% endif %} mb-0">{{ suspended_count }}</h2>
+                <small class="text-muted">reconciliation suspended</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- By repository -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0">By model repository</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-striped mb-0 js-sortable">
+                    <thead class="thead-light">
+                        <tr><th>Repository</th><th class="text-right">Envs</th>
+                            <th class="text-right">Enabled</th><th class="text-right">Suspended</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for r in repo_list %}
+                        <tr>
+                            <td>
+                                <a href="?repo={{ r.gitops_repo|urlencode }}" class="font-mono">{{ r.gitops_repo|default:"unknown" }}</a>
+                                {% if r.gitops_repo == repo_filter %}<span class="badge badge-primary">filtered</span>{% endif %}
+                            </td>
+                            <td class="text-right">{{ r.count }}</td>
+                            <td class="text-right">{{ r.enabled }}</td>
+                            <td class="text-right">{% if r.suspended %}<span class="badge badge-warning">{{ r.suspended }}</span>{% else %}0{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Module usage -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">is-terraform-modules usage</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if module_list %}
+                <table class="table table-sm table-striped mb-0 js-sortable">
+                    <thead class="thead-light">
+                        <tr><th>Module</th><th class="text-right">Envs using</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for m in module_list %}
+                        <tr><td class="font-mono">{{ m.module }}</td><td class="text-right">{{ m.count }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted p-3 mb-0">
+                    No modules resolved. Module detail is only available for envs whose model lives in the
+                    on-disk <code>is-terraform-models</code> checkout.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Managed environments -->
+<div class="card">
+    <div class="card-header d-flex align-items-center">
+        <h5 class="mb-0">
+            GitOps-managed environments
+            {% if repo_filter %}<span class="badge badge-primary ml-2">{{ repo_filter }}</span>{% endif %}
+            <span class="badge badge-secondary ml-1">{{ managed_envs|length }}</span>
+        </h5>
+        {% if repo_filter %}<a href="{% url 'gitops-overview' %}" class="btn btn-sm btn-outline-secondary ml-auto">Clear repo filter</a>{% endif %}
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-striped table-hover mb-0 js-sortable">
+            <thead class="thead-light">
+                <tr>
+                    <th>Environment</th><th>Type</th><th>Repository</th><th>Model path</th>
+                    <th>Enabled</th><th>Suspend</th><th>Modules</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in managed_envs %}
+                <tr>
+                    <td><a href="{% url 'environment-detail' e.name %}" class="font-mono">{{ e.name }}</a></td>
+                    <td><span class="badge badge-light">{{ e.env_type|default:"—" }}</span></td>
+                    <td class="font-mono small">{{ e.gitops_repo|default:"—" }}</td>
+                    <td class="font-mono small">{{ e.gitops_path|default:"—" }}</td>
+                    <td>{% if e.gitops_enabled %}<span class="badge badge-success">yes</span>{% elif e.gitops_enabled == False %}<span class="badge badge-secondary">no</span>{% else %}—{% endif %}</td>
+                    <td>{% if e.gitops_suspended %}<span class="badge badge-warning">suspended</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                    <td class="small">
+                        {% for mod in e.gitops_modules %}<span class="badge badge-info font-mono">{{ mod }}</span> {% empty %}<span class="text-muted">—</span>{% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<p class="mt-3 text-muted"><small>
+    {{ modules_resolved_count }} of the listed envs have modules resolved from the on-disk
+    <code>is-terraform-models</code> checkout. The rest are managed by other model repos not checked out here.
+</small></p>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Juju controllers - IS-CMDB{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h1 class="mb-0">Juju controllers</h1>
+  <span class="badge badge-secondary">{{ total }}</span>
+</div>
+<p class="text-muted">Juju controllers (and JAAS/JIMM) across all clouds, with declared quota and live placement. The totals row reflects the selected cloud.</p>
+
+<form method="get" class="form-inline mb-3">
+  <label class="mr-2">Cloud</label>
+  <select name="cloud" class="form-control form-control-sm mr-2" onchange="this.form.submit()">
+    {% for c in clouds %}
+    <option value="{{ c.value }}" {% if c.value == active_cloud %}selected{% endif %}>{{ c.name }}</option>
+    {% endfor %}
+  </select>
+  <noscript><button class="btn btn-sm btn-primary">Filter</button></noscript>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover table-striped js-sortable">
+    <thead class="thead-light">
+      <tr>
+        <th>Controller</th><th>Cloud</th><th>Region</th><th>Consumed by</th>
+        <th class="text-right">Quota vCPU</th><th class="text-right">Quota RAM</th><th class="text-right">Quota Disk</th>
+        <th>Placement</th><th class="text-right">VMs</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="font-mono">
+          <a href="{% url 'environment-detail' name=r.name %}">{{ r.name }}</a>
+          {% if r.is_jimm %}<span class="badge badge-info" title="Runs the juju-jimm-k8s charm">JAAS/JIMM</span>{% endif %}
+        </td>
+        <td>{{ r.cloud|default:"—" }}</td>
+        <td>{{ r.region|default:"—" }}</td>
+        <td>{{ r.consumed_by|default:"—" }}</td>
+        <td class="text-right">{{ r.cores|default_if_none:"—" }}</td>
+        <td class="text-right">{% if r.ram_gb %}{{ r.ram_gb|floatformat:"-1" }} GB{% else %}—{% endif %}</td>
+        <td class="text-right">{% if r.disk %}{{ r.disk }} GB{% else %}—{% endif %}</td>
+        <td class="font-mono small">{% if r.nodes %}{{ r.nodes }}{% if r.extra_nodes %} <span class="badge badge-light">+{{ r.extra_nodes }}</span>{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-right">{% if r.vm_count %}{{ r.vm_count }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9" class="text-muted">No Juju controllers found.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="thead-light">
+        <td><strong>Total{% if active_cloud != 'all' %} — {{ active_cloud }}{% endif %}</strong></td>
+        <td></td>
+        <td></td>
+        <td class="text-muted">{{ total }} controller{{ total|pluralize }}</td>
+        <td class="text-right"><strong>{{ totals.cores }}</strong></td>
+        <td class="text-right"><strong>{{ totals.ram_gb|floatformat:"-1" }} GB</strong></td>
+        <td class="text-right"><strong>{{ totals.disk }} GB</strong></td>
+        <td></td>
+        <td class="text-right"><strong>{{ totals.vm_count }}</strong></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endblock %}

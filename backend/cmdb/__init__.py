@@ -1,0 +1,1 @@
+# IS-CMDB Django application

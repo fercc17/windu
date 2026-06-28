@@ -1,0 +1,193 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}IS-CMDB{% endblock %}</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body { padding-top: 60px; }
+        .navbar-brand { font-weight: 600; }
+        .badge { font-weight: 500; padding: 0.35em 0.65em; }
+        .badge-dark { background-color: #343a40; }
+        .font-mono { font-family: 'Ubuntu Sans Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; }
+        .table-sm td, .table-sm th { padding: 0.5rem; font-size: 0.875rem; }
+        .filters { padding: 1rem; border-radius: 0.25rem; margin-bottom: 1.5rem; }
+        .nav-tabs { margin-bottom: 1.5rem; }
+    </style>
+    <!-- Pragma design tokens + Ubuntu Sans, then the bridge mapping our markup
+         onto those tokens. Loaded after Bootstrap + base styles so they win. -->
+    <link rel="stylesheet" href="{% static 'pragma/pragma.css' %}">
+    <link rel="stylesheet" href="{% static 'pragma/bridge.css' %}">
+    <script>
+        // Apply saved theme before paint to avoid a flash of light mode.
+        (function () { try { if (localStorage.getItem('theme') === 'dark')
+            document.documentElement.classList.add('theme-dark'); } catch (e) {} })();
+    </script>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">IS-CMDB</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Environments</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/clouds/">Clouds</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/maintenance/">Maintenance</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/storage/">Storage</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/teams/">Teams</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="servicesDrop" data-toggle="dropdown">Services</a>
+                        <div class="dropdown-menu" aria-labelledby="servicesDrop">
+                            <a class="dropdown-item" href="/services/">Overview</a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="/dbaas/">DBaaS</a>
+                            <a class="dropdown-item" href="/ck8s-aas/">CK8s aaS</a>
+                            <a class="dropdown-item" href="/jenkins-aas/">Jenkins aaS</a>
+                            <a class="dropdown-item" href="/builders/">Builders</a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="/services/juju/">Juju</a>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/k8s/">PS6 ManSol K8s</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/charms/">Charms</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/cia/">CIA Assessment</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/gitops/">GitOps</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dora/">DORA</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/changes/">Change (CAB)</a>
+                    </li>
+                    {# TEMP: load example CAB change requests from live CMDB data — remove when no longer needed #}
+                    <li class="nav-item">
+                        <form method="post" action="{% url 'changes:load-demo' %}" class="d-inline m-0">{% csrf_token %}
+                            <button type="submit" class="nav-link" style="background:none;border:0;cursor:pointer;font:inherit;"
+                                    title="Temporary: load ps5/ps6/ps7 placement data from tests/fixtures">⚙ Load demo data</button>
+                        </form>
+                    </li>
+                </ul>
+                <button id="theme-toggle" type="button" class="btn btn-sm btn-outline-light"
+                        title="Toggle dark mode">🌙</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        {% if messages %}
+        <div class="mt-2">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <style>table.js-sortable th { cursor: pointer; } table.js-sortable th:hover { background: #e9ecef; }</style>
+    <script>
+    // Generic client-side column sort for any table.js-sortable (site-wide).
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('table.js-sortable').forEach(function (table) {
+        if (!table.tHead) return;
+        var headers = table.tHead.rows[0].cells;
+        Array.prototype.forEach.call(headers, function (th, idx) {
+          if (th.dataset.noSort !== undefined) return;
+          th.addEventListener('click', function () {
+            var tbody = table.tBodies[0];
+            var rows = Array.prototype.slice.call(tbody.rows);
+            var asc = th.getAttribute('data-sort') !== 'asc';
+            Array.prototype.forEach.call(headers, function (h) {
+              h.removeAttribute('data-sort');
+              var old = h.querySelector('.sort-ind'); if (old) old.remove();
+            });
+            th.setAttribute('data-sort', asc ? 'asc' : 'desc');
+            var cell = function (r) { var c = r.cells[idx]; return c ? c.textContent.trim() : ''; };
+            var numeric = rows.every(function (r) {
+              var v = cell(r).replace(/[%,]/g, ''); return v === '' || v === '—' || !isNaN(parseFloat(v));
+            });
+            rows.sort(function (a, b) {
+              var x = cell(a), y = cell(b);
+              if (numeric) { x = parseFloat(x.replace(/[%,]/g, '')) || 0; y = parseFloat(y.replace(/[%,]/g, '')) || 0; return asc ? x - y : y - x; }
+              return asc ? x.localeCompare(y) : y.localeCompare(x);
+            });
+            rows.forEach(function (r) { tbody.appendChild(r); });
+            var ind = document.createElement('span'); ind.className = 'sort-ind'; ind.textContent = asc ? ' ▲' : ' ▼';
+            th.appendChild(ind);
+          });
+        });
+      });
+    });
+    </script>
+    <script>
+    // Dark-mode toggle (persisted in localStorage; class on <html>).
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      var sync = function () {
+        btn.textContent = document.documentElement.classList.contains('theme-dark') ? '☀️' : '🌙';
+      };
+      sync();
+      btn.addEventListener('click', function () {
+        var dark = document.documentElement.classList.toggle('theme-dark');
+        try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch (e) {}
+        sync();
+      });
+    })();
+    </script>
+    <script>
+    // Append the viewer's local time next to every UTC timestamp, so
+    // "2026-06-21 03:20 UTC" shows "(23:20 local)" right after it everywhere.
+    // Times are emitted as <time class="cmdb-dt" datetime="<iso-utc>"> by the
+    // `utclocal` filter; this only adds an annotation, never replaces the UTC.
+    (function () {
+      var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+      var run = function () {
+        document.querySelectorAll('time.cmdb-dt').forEach(function (el) {
+          if (el.dataset.localized) return;
+          var iso = el.getAttribute('datetime');
+          var d = iso ? new Date(iso) : null;
+          if (!d || isNaN(d.getTime())) return;
+          var hhmm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+          var sameDay = d.getDate() === d.getUTCDate() && d.getMonth() === d.getUTCMonth()
+                        && d.getFullYear() === d.getUTCFullYear();
+          var local = sameDay ? hhmm
+            : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + hhmm;
+          var span = document.createElement('span');
+          span.className = 'cmdb-local text-muted';
+          span.textContent = ' (' + local + ' local)';
+          el.insertAdjacentElement('afterend', span);
+          el.dataset.localized = '1';
+        });
+      };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+      else run();
+    })();
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

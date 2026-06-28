@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Outdated Charms - IS-CMDB{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Charms</h1>
+    <div>
+        <span class="badge badge-danger">{{ prod_not_stable }} prod not on stable</span>
+        <span class="badge badge-warning ml-2">{{ revision_behind }} revisions behind</span>
+        <span class="badge badge-info ml-2">{{ newer_track }} on an older track</span>
+        <span class="badge badge-secondary ml-2">{{ models_affected }} models</span>
+    </div>
+</div>
+
+<ul class="nav nav-pills mb-3">
+    <li class="nav-item">
+        <a class="nav-link {% if active_tab == 'overview' %}active{% endif %}" href="{% url 'charm-statistics' %}">Overview</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if active_tab == 'outdated' %}active{% endif %}" href="{% url 'charm-outdated' %}">Outdated</a>
+    </li>
+</ul>
+
+<p class="text-muted">
+    Charms flagged where the deployed revision is behind the latest published on
+    <a href="https://charmhub.io" target="_blank" rel="noopener">charmhub.io</a>, or — for
+    <strong>prod</strong> — where the charm is not on the <code>stable</code> risk.
+    Charms with no pinned revision on a non-prod model auto-update and are not listed.
+    {% if checked_at %}<br>Charmhub catalogue last refreshed {{ checked_at|utclocal }}.{% endif %}
+</p>
+
+{% if cache_empty %}
+<div class="alert alert-warning">
+    The Charmhub cache is empty. Run <code>python manage.py refresh_charmhub</code> to populate
+    latest revisions. Prod-not-on-stable rows still show, but the "Latest" column will read “—”.
+</div>
+{% endif %}
+
+<div class="mb-2">
+    {% if prod_only %}
+    <a href="{% url 'charm-outdated' %}" class="btn btn-sm btn-outline-secondary">Show all environments</a>
+    {% else %}
+    <a href="{% url 'charm-outdated' %}?prod=1" class="btn btn-sm btn-outline-danger">Prod only</a>
+    {% endif %}
+    <input type="text" id="outdated-search" class="form-control d-inline-block ml-2 mb-0"
+           style="max-width: 280px" placeholder="Filter by model or charm…" autocomplete="off">
+</div>
+
+<div class="table-responsive">
+    <table class="table table-sm table-hover table-striped js-sortable" id="outdated-table">
+        <thead class="thead-light">
+            <tr>
+                <th>Model</th>
+                <th>Env</th>
+                <th>Cloud</th>
+                <th>Charm</th>
+                <th>Current</th>
+                <th>Latest available</th>
+                <th>Why</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td><a href="{% url 'environment-detail' name=row.model %}">{{ row.model }}</a></td>
+                <td>
+                    {% if row.is_prod %}<span class="badge badge-danger">prod</span>
+                    {% else %}<span class="badge badge-light border">{{ row.env_type }}</span>{% endif %}
+                </td>
+                <td>{{ row.cloud|default:'—' }}</td>
+                <td class="font-mono">{{ row.charm }}</td>
+                <td><code>{{ row.current }}</code></td>
+                <td>
+                    <code>{{ row.latest }}</code>
+                    {% if not row.on_charmhub %}<span class="text-muted small">(not on charmhub)</span>{% endif %}
+                </td>
+                <td>
+                    {% for reason in row.reasons %}
+                        {% if reason == 'prod not on stable' %}
+                        <span class="badge badge-danger">prod ≠ stable</span>
+                        {% elif reason == 'revision behind' %}
+                        <span class="badge badge-warning">{{ row.behind_by }} rev behind</span>
+                        {% elif reason == 'newer track' %}
+                        <span class="badge badge-info">newer track → {{ row.newer_track }}</span>
+                        {% else %}
+                        <span class="badge badge-secondary">{{ reason }}</span>
+                        {% endif %}
+                    {% endfor %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-muted">No outdated charms found. 🎉</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Client-side filter across model + charm columns.
+(function () {
+  var input = document.getElementById('outdated-search');
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#outdated-table tbody tr'));
+  if (!input) return;
+  input.addEventListener('input', function () {
+    var q = input.value.toLowerCase();
+    rows.forEach(function (r) {
+      var hay = ((r.cells[0] ? r.cells[0].textContent : '') + ' ' +
+                 (r.cells[3] ? r.cells[3].textContent : '')).toLowerCase();
+      r.style.display = hay.indexOf(q) !== -1 ? '' : 'none';
+    });
+  });
+})();
+</script>
+{% endblock %}

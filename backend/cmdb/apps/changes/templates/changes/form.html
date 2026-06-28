@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block title %}New change request - CAB - IS-CMDB{% endblock %}
+
+{% block extra_css %}
+<style>
+  .code-wrap { display:flex; border:1px solid #ced4da; border-radius:.25rem; overflow:hidden; background:#fff; }
+  .code-wrap .code-gutter { user-select:none; text-align:right; padding:.375rem .5rem; margin:0;
+    background:#f1f3f5; color:#868e96; font-family:'Ubuntu Sans Mono',monospace; font-size:.875rem;
+    line-height:1.5; white-space:pre; overflow:hidden; }
+  .code-wrap textarea.with-lines { border:0; box-shadow:none; border-radius:0; resize:vertical;
+    flex:1 1 auto; line-height:1.5; font-size:.875rem; }
+  .code-wrap textarea.with-lines:focus { box-shadow:none; outline:0; }
+  .theme-dark .code-wrap { border-color:#444; background:#1f2225; }
+  .theme-dark .code-wrap .code-gutter { background:#23262a; color:#7a828a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb bg-transparent px-0">
+    <li class="breadcrumb-item"><a href="{% url 'changes:list' %}">Change management</a></li>
+    <li class="breadcrumb-item active">New</li>
+  </ol>
+</nav>
+
+<h1 class="mb-3">New change request</h1>
+<p class="text-muted">Impact, risk, and the approval chain are computed on submit from
+  the target's placement and dependency graph. The CMDB records the change; it does
+  not execute it.</p>
+
+<form method="post" action="{% url 'changes:create' %}">
+  {% csrf_token %}
+  <div class="row">
+    <div class="col-md-8">
+      <div class="form-group">
+        <label>Title *</label>
+        <input name="title" class="form-control" value="{{ form.title|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea name="description" class="form-control" rows="2">{{ form.description|default:'' }}</textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group col-md-3">
+          <label>Change type</label>
+          <select name="change_type" class="form-control">
+            {% for value, label in type_choices %}
+            <option value="{{ value }}" {% if value == form.change_type %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group col-md-3">
+          <label>Service impact *</label>
+          <select name="temperature" class="form-control">
+            {% for value, label in temperature_choices %}
+            <option value="{{ value }}" {% if value == form.temperature %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group col-md-3">
+          <label>Proposer</label>
+          <input name="proposer" id="proposer" class="form-control" list="people-options"
+                 autocomplete="off" value="{{ form.proposer|default:'' }}" placeholder="start typing a name">
+        </div>
+        <div class="form-group col-md-3">
+          <label>Executer *<small class="text-muted"> (submit)</small></label>
+          <input name="executer" id="executer" class="form-control" list="people-options"
+                 autocomplete="off" value="{{ form.executer|default:'' }}" placeholder="start typing a name">
+        </div>
+      </div>
+      <datalist id="people-options"></datalist>
+
+      <hr>
+      <h6 class="text-muted">Target</h6>
+      <div class="form-row">
+        <div class="form-group col-md-4">
+          <label>Target type *</label>
+          <select name="target_type" class="form-control">
+            {% for value, label in target_types %}
+            <option value="{{ value }}" {% if value == form.target_type %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group col-md-8">
+          <label>Configuration item *</label>
+          <input name="target_ref" id="target_ref" class="form-control" list="ci-options"
+                 autocomplete="off" value="{{ form.target_ref|default:'' }}"
+                 placeholder="start typing — juju model, node, cloud, or switch">
+          <datalist id="ci-options"></datalist>
+          <small class="form-text text-muted">Suggestions update as you type, filtered by the target type.</small>
+        </div>
+      </div>
+
+      <div id="ci-impact" class="alert alert-info py-2 px-3" style="display:none">
+        <strong>Impacted owners</strong> — <span id="ci-impact-body"></span>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="notify_on_approval"
+               name="notify_on_approval" value="1" {% if form.notify_on_approval %}checked{% endif %}>
+        <label class="form-check-label" for="notify_on_approval">
+          Notify the impacted CIA owners (asset + risk owner) when the change is approved
+        </label>
+      </div>
+
+      <hr>
+      <h6 class="text-muted">Maintenance window <small>(req. to submit)</small></h6>
+      <div class="form-row">
+        <div class="form-group col-md-6">
+          <label>Start</label>
+          <input type="datetime-local" id="mw_start" name="mw_start" class="form-control" value="{{ form.mw_start|default:'' }}">
+        </div>
+        <div class="form-group col-md-6">
+          <label>End</label>
+          <input type="datetime-local" id="mw_end" name="mw_end" class="form-control" value="{{ form.mw_end|default:'' }}">
+        </div>
+      </div>
+      <small id="mw-hint" class="form-text text-muted"></small>
+
+      <hr>
+      <h6 class="text-muted">Runbook <small>(precheck / execute / verify / rollback all required to submit — recorded, never run)</small></h6>
+      <div class="form-group">
+        <label>Precheck *</label>
+        <textarea name="precheck_commands" class="form-control font-mono with-lines" rows="3">{{ form.precheck_commands|default:'' }}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Execute *</label>
+        <textarea name="execute_commands" class="form-control font-mono with-lines" rows="3">{{ form.execute_commands|default:'' }}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Verify *</label>
+        <textarea name="verify_commands" class="form-control font-mono with-lines" rows="3">{{ form.verify_commands|default:'' }}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Rollback *</label>
+        <textarea name="rollback_commands" class="form-control font-mono with-lines" rows="3">{{ form.rollback_commands|default:'' }}</textarea>
+      </div>
+      <div class="form-group" id="staging-group">
+        <label>Staging change <small class="text-muted">(optional · outage changes only)</small></label>
+        <textarea name="staging_notes" class="form-control" rows="2"
+                  placeholder="Configuration that can be staged ahead of time without applying the change.">{{ form.staging_notes|default:'' }}</textarea>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card"><div class="card-body">
+        <h6 class="text-muted">Standard-change template</h6>
+        <p class="small text-muted">Optional. A standard change with a matching template
+          (and guardrails holding) auto-approves; otherwise it is auto-upgraded to normal.</p>
+        <select name="template" class="form-control">
+          <option value="">— none —</option>
+          {% for t in templates %}
+          <option value="{{ t.pk }}" {% if form.template == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.name }}{% if t.auto_approve %} (auto){% endif %}</option>
+          {% endfor %}
+        </select>
+        <hr>
+        <button type="submit" name="action" value="submit" class="btn btn-success btn-block">Create &amp; submit</button>
+        <button type="submit" name="action" value="draft" class="btn btn-outline-secondary btn-block">Save as draft</button>
+        <a href="{% url 'changes:list' %}" class="btn btn-link btn-block">Cancel</a>
+      </div></div>
+    </div>
+  </div>
+</form>
+
+<script>
+// Configuration-item typeahead: fetch matches for the chosen target type into the
+// <datalist> as the user types (debounced). Reset when the target type changes.
+(function () {
+  var typeSel = document.querySelector('select[name=target_type]');
+  var input = document.getElementById('target_ref');
+  var dl = document.getElementById('ci-options');
+  if (!typeSel || !input || !dl) return;
+  var timer;
+  function refresh() {
+    var url = '{% url "changes:ci-search" %}?type=' + encodeURIComponent(typeSel.value) +
+              '&q=' + encodeURIComponent(input.value);
+    fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        dl.innerHTML = '';
+        (d.results || []).forEach(function (name) {
+          var o = document.createElement('option'); o.value = name; dl.appendChild(o);
+        });
+      })
+      .catch(function () {});
+  }
+  function debounced() { clearTimeout(timer); timer = setTimeout(refresh, 150); }
+  input.addEventListener('input', debounced);
+  input.addEventListener('focus', refresh);
+  typeSel.addEventListener('change', function () { input.value = ''; refresh(); });
+  refresh();
+})();
+</script>
+
+<script>
+// Window rules: only emergency may be in the past (start min = now otherwise), and
+// the end must be at least 1 hour after the start (end min = start + 1h).
+(function () {
+  var typeSel = document.querySelector('select[name=change_type]');
+  var start = document.getElementById('mw_start');
+  var end = document.getElementById('mw_end');
+  var hint = document.getElementById('mw-hint');
+  if (!typeSel || !start || !end) return;
+  function asLocal(d) {
+    d.setSeconds(0, 0);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+  function plusHour(v) {
+    var d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    d.setHours(d.getHours() + 1);
+    return asLocal(d);
+  }
+  function syncStart() {
+    if (typeSel.value === 'emergency') {
+      start.removeAttribute('min');
+      if (hint) hint.textContent = 'Emergency: may be recorded in the past. End ≥1h after start.';
+    } else if (typeSel.value === 'normal') {
+      var d = new Date(); d.setDate(d.getDate() + 7);
+      start.min = asLocal(d);
+      if (hint) hint.textContent = 'Normal: must be requested at least 1 week ahead. End ≥1h after start.';
+    } else {
+      start.min = asLocal(new Date());
+      if (hint) hint.textContent = 'Standard: same-day OK (must be in the future). End ≥1h after start.';
+    }
+  }
+  function syncEnd() {
+    if (!start.value) return;
+    end.min = plusHour(start.value);
+    if (end.value && end.value < end.min) end.value = end.min;
+  }
+  typeSel.addEventListener('change', syncStart);
+  start.addEventListener('change', syncEnd);
+  start.addEventListener('input', syncEnd);
+  syncStart(); syncEnd();
+})();
+</script>
+
+<script>
+// Staging only applies to cold changes — hide the field for hot changes.
+(function () {
+  var tempSel = document.querySelector('select[name=temperature]');
+  var group = document.getElementById('staging-group');
+  if (!tempSel || !group) return;
+  function sync() { group.style.display = (tempSel.value === 'cold') ? '' : 'none'; }
+  tempSel.addEventListener('change', sync);
+  sync();
+})();
+</script>
+
+<script>
+// People typeahead for proposer/executer + impacted CIA-owner panel for the CI.
+(function () {
+  var dl = document.getElementById('people-options');
+  ['proposer', 'executer'].forEach(function (id) {
+    var input = document.getElementById(id);
+    if (!input || !dl) return;
+    var timer;
+    function refresh() {
+      fetch('{% url "changes:people-search" %}?q=' + encodeURIComponent(input.value))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          dl.innerHTML = '';
+          (d.results || []).forEach(function (p) {
+            var o = document.createElement('option'); o.value = p; dl.appendChild(o);
+          });
+        }).catch(function () {});
+    }
+    input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(refresh, 150); });
+    input.addEventListener('focus', refresh);
+  });
+
+  var typeSel = document.querySelector('select[name=target_type]');
+  var ref = document.getElementById('target_ref');
+  var panel = document.getElementById('ci-impact');
+  var body = document.getElementById('ci-impact-body');
+  if (typeSel && ref && panel && body) {
+    var t;
+    function loadCI() {
+      if (!ref.value) { panel.style.display = 'none'; return; }
+      fetch('{% url "changes:ci-info" %}?type=' + encodeURIComponent(typeSel.value) +
+            '&ref=' + encodeURIComponent(ref.value))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var parts = [];
+          if (d.cia_risk_owner) parts.push('risk owner: ' + d.cia_risk_owner);
+          if (d.cia_owner) parts.push('asset owner: ' + d.cia_owner);
+          if (d.cia_custodian) parts.push('custodian: ' + d.cia_custodian);
+          if (d.consumer_team) parts.push('consumer: ' + d.consumer_team);
+          if (parts.length) { body.textContent = parts.join('  ·  '); panel.style.display = ''; }
+          else { panel.style.display = 'none'; }
+        }).catch(function () { panel.style.display = 'none'; });
+    }
+    ref.addEventListener('change', function () { clearTimeout(t); t = setTimeout(loadCI, 150); });
+    ref.addEventListener('input', function () { clearTimeout(t); t = setTimeout(loadCI, 400); });
+    typeSel.addEventListener('change', loadCI);
+    loadCI();
+  }
+})();
+</script>
+
+<script>
+// Line numbers for the runbook textareas: wrap each in a gutter + textarea and
+// keep the gutter's line count and scroll position in sync.
+(function () {
+  document.querySelectorAll('textarea.with-lines').forEach(function (ta) {
+    var wrap = document.createElement('div'); wrap.className = 'code-wrap';
+    var gutter = document.createElement('div'); gutter.className = 'code-gutter';
+    ta.parentNode.insertBefore(wrap, ta);
+    wrap.appendChild(gutter); wrap.appendChild(ta);
+    function render() {
+      var n = ta.value.split('\n').length || 1;
+      var s = ''; for (var i = 1; i <= n; i++) s += i + '\n';
+      gutter.textContent = s;
+      gutter.scrollTop = ta.scrollTop;
+    }
+    ta.addEventListener('input', render);
+    ta.addEventListener('scroll', function () { gutter.scrollTop = ta.scrollTop; });
+    render();
+  });
+})();
+</script>
+{% endblock %}

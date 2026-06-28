@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Charm Statistics - IS-CMDB{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Charms</h1>
+    <div>
+        <span class="badge badge-info">{{ total_charms }} Charms</span>
+        <span class="badge badge-success ml-2">{{ total_deployments }} Deployments</span>
+    </div>
+</div>
+
+<ul class="nav nav-pills mb-3">
+    <li class="nav-item">
+        <a class="nav-link {% if active_tab == 'overview' %}active{% endif %}" href="{% url 'charm-statistics' %}">Overview</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if active_tab == 'outdated' %}active{% endif %}" href="{% url 'charm-outdated' %}">Outdated</a>
+    </li>
+</ul>
+
+<p class="text-muted">
+    Charms deployed across all environments. Click a column to sort; click a version to view its environments.
+</p>
+
+<input type="text" id="charm-search" class="form-control mb-2" style="max-width: 320px"
+       placeholder="Filter charms by name…" autocomplete="off">
+
+<div class="table-responsive">
+    <table class="table table-sm table-hover table-striped js-sortable" id="charm-table">
+        <thead class="thead-light">
+            <tr>
+                <th>Charm</th>
+                <th class="text-right">Environments</th>
+                <th class="text-right">Versions</th>
+                <th data-no-sort>Version breakdown</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for charm_stat in charm_stats %}
+            <tr>
+                <td class="font-mono">{{ charm_stat.charm }}</td>
+                <td class="text-right"><a href="/?charm={{ charm_stat.charm|urlencode }}" class="badge badge-primary" title="View environments running {{ charm_stat.charm }}">{{ charm_stat.total_environments }}</a></td>
+                <td class="text-right">{{ charm_stat.versions|length }}</td>
+                <td>
+                    {% for v in charm_stat.versions %}
+                    <a href="/?charm={{ charm_stat.charm|urlencode }}&charm_version={{ charm_stat.charm|urlencode }}:{{ v.version|urlencode }}"
+                       class="badge badge-light border" title="View environments running {{ charm_stat.charm }} {{ v.version }}">
+                        <code>{{ v.version }}</code> <span class="badge badge-secondary">{{ v.count }}</span>
+                    </a>
+                    {% endfor %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-muted">No charm deployments found in the database.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Client-side name filter for the charm table.
+(function () {
+  var input = document.getElementById('charm-search');
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#charm-table tbody tr'));
+  if (!input) return;
+  input.addEventListener('input', function () {
+    var q = input.value.toLowerCase();
+    rows.forEach(function (r) {
+      var name = (r.cells[0] ? r.cells[0].textContent : '').toLowerCase();
+      r.style.display = name.indexOf(q) !== -1 ? '' : 'none';
+    });
+  });
+})();
+</script>
+{% endblock %}

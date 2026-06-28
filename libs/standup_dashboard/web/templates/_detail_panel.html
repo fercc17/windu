@@ -1,0 +1,107 @@
+{% macro ticket_row(t) %}
+<div class="ticket c-{{ t.color.value }}{% if t.flagged %} flagged{% endif %}">
+  {% if t.flagged %}<span class="flag" title="Off-focus: in progress but not Highest, ps5-blocker, or PR/MP Review">&#9873;</span>{% endif %}
+  {% if t.ribbon %}<span class="ribbon ribbon-{{ t.ribbon | lower }}" title="Priority: {{ t.priority }}">{{ t.ribbon }}</span>{% endif %}
+  {% if t.url %}
+  <a class="key" href="{{ t.url }}" target="_blank" rel="noopener">{{ t.key }}</a>
+  <a class="title" href="{{ t.url }}" target="_blank" rel="noopener">{{ t.title }}</a>
+  {% else %}
+  <span class="key">{{ t.key }}</span>
+  <span class="title">{{ t.title }}</span>
+  {% endif %}
+  {% if t.status %}<span class="tstatus">{{ t.status }}</span>{% endif %}
+  {% if t.is_bvg_review %}<span class="badge">PR/MP Review</span>{% endif %}
+  {% if t.pulses_open %}<span class="badge stale" title="Highest priority, open for more than {{ t.pulses_open }} pulse{{ 's' if t.pulses_open > 1 else '' }}">&#9203; &gt;{{ t.pulses_open }} pulse{{ 's' if t.pulses_open > 1 else '' }}</span>{% endif %}
+  {% if t.time_label %}<span class="ttime" title="{{ t.time_title }}">&#9201; {{ t.time_label }}</span>{% endif %}
+  {% if t.effort_label %}<span class="effort{% if t.effort_over %} over{% endif %}" title="{{ t.effort_title }}">&#8987; {{ t.effort_label }}</span>{% endif %}
+</div>
+{% endmacro %}
+{% macro metric_col(head, total, ao, ano, jp, jt, prs, cbusy, copen, has_cal, sd, dshare) %}
+<div class="pt-col">
+  <div class="pt-head">{{ head }}</div>
+  <span class="pt-total" title="Total engaged time = alerts (no overlap) + Jira project + Jira ticket + busy">&#9201; total <strong>{{ total }}</strong></span>
+  <span title="Alert time, summed per incident (overlaps double-counted)">&#128293; alerts overlap {{ ao }}</span>
+  <span title="Alert time, overlapping incidents merged to wall-clock">&#128293; alerts no overlap {{ ano }}</span>
+  <span title="Jira worklog on ISDB (project work)">&#128203; Jira project {{ jp }}</span>
+  <span title="Jira worklog on ISReq (request/ticket work)">&#128203; Jira ticket {{ jt }}</span>
+  <span title="GitHub PRs opened">&#128279; GH PRs opened {{ prs.created }}</span>
+  <span title="GitHub PRs merged">&#128279; GH PRs merged {{ prs.merged }}</span>
+  <span title="GitHub PRs touched (any activity)">&#128279; GH PRs touched {{ prs.updated }}</span>
+  <span title="GitHub PRs reviewed">&#128279; GH PRs reviewed {{ prs.reviewed }}</span>
+  {% if has_cal %}
+  <span title="Meeting time — &le;1h blocks only; &gt;1h blockers, SD and PTO excluded">&#128197; busy {{ cbusy }}</span>
+  <span title="Free time = capacity &minus; busy; &gt;1h blockers and PTO don't reduce it">&#128197; open {{ copen }}</span>
+  {% if dshare %}<span class="pt-distract" title="Distractor time as a share of your open (non-busy) time — how much free time went to off-role work">&#128679; distractors {{ dshare }}</span>{% endif %}
+  {% if sd %}<span title="Self-development block (4h/week) — the day it falls on">&#127891; SD {{ sd | join(', ') }}</span>{% endif %}
+  {% endif %}
+</div>
+{% endmacro %}
+<div class="panel" data-engineer="{{ panel.email }}" data-region="{{ region_key }}">
+  <div class="panel-head">
+    <span class="name">{{ panel.name }}</span>
+    <label class="role-pick" title="Set today's role">
+      Role:
+      <select name="role"
+              hx-post="/chip/{{ panel.email }}/role"
+              hx-vals='{"regions": "{{ region_key }}"}'
+              hx-target="closest .panel" hx-swap="outerHTML">
+        {% for r in roles %}
+        <option value="{{ r }}" {% if panel.role.value == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="panel-refresh" title="Refresh just this person's data (Jira, calendar, PRs, alerts)"
+            hx-post="/chip/{{ panel.email }}/refresh"
+            hx-vals='{"regions": "{{ region_key }}"}'
+            hx-target="closest .panel" hx-swap="outerHTML"
+            hx-disabled-elt="this">&#10227;</button>
+    <button class="close" data-close-panel title="Close">&times;</button>
+  </div>
+  <div class="panel-sprints" title="Their tickets in the current active sprint — click to open the live Jira sprint filter">
+    &#127939; Current sprint:
+    <a href="{{ panel.sprint_isreq_url }}" target="_blank" rel="noopener">ISReq <strong>{{ panel.sprint_isreq_count }}</strong></a>
+    &middot;
+    <a href="{{ panel.sprint_isdb_url }}" target="_blank" rel="noopener">ISDB <strong>{{ panel.sprint_isdb_count }}</strong></a>
+  </div>
+  <div class="panel-time">
+    {{ metric_col('24H', panel.total_24h_label,
+                  panel.alert_time_24h_label, panel.alert_union_24h_label,
+                  panel.jira_project_24h_label, panel.jira_request_24h_label,
+                  panel.pr_stats_24h, panel.cal_busy_24h_label, panel.cal_open_24h_label,
+                  panel.calendar.has_data, none, panel.distractor_share_24h_label) }}
+    {{ metric_col('Today', panel.total_today_label,
+                  panel.alert_time_today_label, panel.alert_union_today_label,
+                  panel.jira_project_today_label, panel.jira_request_today_label,
+                  panel.pr_stats_today, panel.cal_busy_today_label, panel.cal_open_today_label,
+                  panel.calendar.has_data, none, panel.distractor_share_today_label) }}
+    {{ metric_col('Pulse', panel.total_pulse_label,
+                  panel.alert_time_label, panel.alert_union_label,
+                  panel.jira_project_label, panel.jira_request_label,
+                  panel.pr_stats, panel.cal_busy_label, panel.cal_open_label,
+                  panel.calendar.has_data, panel.calendar.sd_days, panel.distractor_share_label) }}
+  </div>
+  {% if panel.calendar.pto_days %}
+  <div class="panel-pto" title="Days off across this week and next, from the free/busy calendar feed">
+    &#127958; PTO this &amp; next week: <strong>{{ panel.calendar.pto_days | join(', ') }}</strong>
+  </div>
+  {% endif %}
+  {% for group, tickets in panel.groups.items() %}
+  <div class="group-title">{{ group }}{% if tickets %} <span class="group-count">&times;{{ tickets | length }}</span>{% endif %}</div>
+  {% if group in ["WIP", "Success", "Distractors"] %}
+    {% set recent = tickets | selectattr("touched_24h") | list %}
+    {% set older = tickets | rejectattr("touched_24h") | list %}
+    <div class="split">
+      <div class="split-col">
+        <div class="split-head">24H</div>
+        {% if recent %}{% for t in recent %}{{ ticket_row(t) }}{% endfor %}{% else %}<p class="empty">none</p>{% endif %}
+      </div>
+      <div class="split-col">
+        <div class="split-head">Pulse</div>
+        {% if older %}{% for t in older %}{{ ticket_row(t) }}{% endfor %}{% else %}<p class="empty">none</p>{% endif %}
+      </div>
+    </div>
+  {% else %}
+    {% if tickets %}{% for t in tickets %}{{ ticket_row(t) }}{% endfor %}{% else %}<p class="empty">none</p>{% endif %}
+  {% endif %}
+  {% endfor %}
+</div>

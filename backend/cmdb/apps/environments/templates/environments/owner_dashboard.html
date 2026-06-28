@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Owner Dashboard - {{ owner }} - IS-CMDB{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Owner Dashboard: <span class="text-primary">{{ owner }}</span></h1>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total Environments</h5>
+                <h2>{{ total_envs }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-danger">
+            <div class="card-body">
+                <h5 class="card-title">Production</h5>
+                <h2 class="text-danger">{{ prod_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h5 class="card-title">Tier 1</h5>
+                <h2 class="text-warning">{{ tier1_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Tier 2</h5>
+                <h2>{{ tier2_count }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Row -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card border-success">
+            <div class="card-body">
+                <h5 class="card-title">Active</h5>
+                <h2 class="text-success">{{ active_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-danger">
+            <div class="card-body">
+                <h5 class="card-title">Degraded</h5>
+                <h2 class="text-danger">{{ degraded_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h5 class="card-title">Maintenance</h5>
+                <h2 class="text-warning">{{ maintenance_count }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resource Quotas -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Resource Quotas</h5>
+        <div class="row mt-3">
+            <div class="col-md-4">
+                <p class="mb-1"><strong>Total Cores:</strong></p>
+                <h3>{{ total_cores|floatformat:0 }}</h3>
+            </div>
+            <div class="col-md-4">
+                <p class="mb-1"><strong>Total RAM (GB):</strong></p>
+                <h3>{{ total_ram_gb|floatformat:0 }}</h3>
+            </div>
+            <div class="col-md-4">
+                <p class="mb-1"><strong>Total Instances:</strong></p>
+                <h3>{{ total_instances|floatformat:0 }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Needs Attention -->
+{% if needs_attention %}
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Environments Needing Attention</h5>
+        <div class="table-responsive mt-3">
+            <table class="table table-sm table-striped">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Environment</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in needs_attention %}
+                    <tr>
+                        <td><a href="/model/{{ item.name }}/">{{ item.name }}</a></td>
+                        <td>
+                            <span class="badge badge-{{ item.severity }}">{{ item.reason }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Region Distribution -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Region Distribution</h5>
+        <div class="mt-3">
+            {% for region, count in region_dist.items %}
+            <span class="badge badge-secondary badge-lg mr-2 mb-2">{{ region }}: {{ count }}</span>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Environments List -->
+<div class="card">
+    <div class="card-body">
+        <h5>Your Environments (Top 50)</h5>
+        <div class="table-responsive mt-3">
+            <table class="table table-sm table-striped">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Tier</th>
+                        <th>Region</th>
+                        <th>Team</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for env in environments %}
+                    <tr>
+                        <td><a href="/model/{{ env.name }}/">{{ env.name }}</a></td>
+                        <td><span class="badge badge-secondary">{{ env.env_type }}</span></td>
+                        <td><span class="badge badge-success">{{ env.status }}</span></td>
+                        <td>{% if env.criticality_tier %}T{{ env.criticality_tier }}{% else %}-{% endif %}</td>
+                        <td>{{ env.region|default:"-" }}</td>
+                        <td>{{ env.team|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted mt-2">
+            <small><a href="/?owner_exact={{ owner }}">View all environments for {{ owner }} →</a></small>
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Standard maintenance windows - CAB - IS-CMDB{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb bg-transparent px-0">
+    <li class="breadcrumb-item"><a href="{% url 'changes:list' %}">Change management</a></li>
+    <li class="breadcrumb-item active">Standard windows</li>
+  </ol>
+</nav>
+
+<h1 class="mb-2">Regional standard maintenance windows</h1>
+<p class="text-muted">Standing, recurring windows — one per region (docs/cab-design.md §7).
+  A standard change attaches to its region's next occurrence. Read-only here; IS
+  management edits them in the admin.</p>
+
+<div class="table-responsive">
+  <table class="table table-sm">
+    <thead class="thead-light">
+      <tr>
+        <th>Region</th>
+        <th>Recurs</th>
+        <th>Start (local)</th>
+        <th>Duration</th>
+        <th>Timezone</th>
+        <th>Next occurrence</th>
+        <th>Active</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for w in windows %}
+      <tr>
+        <td><strong>{{ w.get_region_display }}</strong></td>
+        <td>Every {{ w.get_weekday_display }}</td>
+        <td>{{ w.start_time|time:"H:i" }}</td>
+        <td>{{ w.duration }}</td>
+        <td class="font-mono">{{ w.timezone }}</td>
+        <td>
+          <time class="cmdb-dt" datetime="{{ w.next_start|date:'c' }}">{{ w.next_start|date:'Y-m-d H:i' }}</time>
+          → {{ w.next_finish|date:'H:i' }}
+        </td>
+        <td>{% if w.active %}<span class="badge badge-success">active</span>{% else %}<span class="badge badge-secondary">inactive</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="text-center text-muted py-4">No standard windows configured.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

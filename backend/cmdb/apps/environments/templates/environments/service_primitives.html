@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load django_tables2 %}
+{% load render_table from django_tables2 %}
+
+{% block title %}Service Primitives Inventory - IS-CMDB{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Service Primitives Inventory</h1>
+
+<p class="lead mb-4">Aggregation by service primitive and service class for capacity planning.</p>
+
+<!-- Filters -->
+<div class="filters mb-4">
+    <form method="get" class="form-inline">
+        <div class="form-group mr-3">
+            <label for="primitive" class="mr-2">Primitive:</label>
+            <select name="primitive" id="primitive" class="form-control" onchange="this.form.submit()">
+                {% for primitive in primitives %}
+                <option value="{{ primitive.value }}" {% if active_primitive == primitive.value %}selected{% endif %}>
+                    {{ primitive.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <a href="?" class="btn btn-secondary">Clear Filters</a>
+    </form>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Service Types</h5>
+                <h2>{{ total_services }}</h2>
+                <small class="text-muted">Unique primitive + class combinations</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total Environments</h5>
+                <h2>{{ total_envs }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+    <div class="card-body">
+        {% render_table table %}
+    </div>
+</div>
+
+<p class="mt-3 text-muted">
+    <small>Use this view for capacity planning per service type and understanding service distribution across regions and clouds.</small>
+</p>
+{% endblock %}

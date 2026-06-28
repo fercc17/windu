@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% load django_tables2 %}
+{% load render_table from django_tables2 %}
+
+{% block title %}Team Resource Aggregation - IS-CMDB{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Team Resource Aggregation</h1>
+
+<!-- Filters -->
+<div class="filters mb-4">
+    <form method="get" class="form-inline">
+        <div class="form-group mr-3">
+            <label for="region" class="mr-2">Region:</label>
+            <select name="region" id="region" class="form-control" onchange="this.form.submit()">
+                {% for region in regions %}
+                <option value="{{ region.value }}" {% if active_region == region.value %}selected{% endif %}>
+                    {{ region.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group mr-3">
+            <label for="cloud" class="mr-2">Cloud:</label>
+            <select name="cloud" id="cloud" class="form-control" onchange="this.form.submit()">
+                {% for cloud in clouds %}
+                <option value="{{ cloud.value }}" {% if active_cloud == cloud.value %}selected{% endif %}>
+                    {{ cloud.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group mr-3">
+            <label for="architecture" class="mr-2">Architecture:</label>
+            <select name="architecture" id="architecture" class="form-control" onchange="this.form.submit()">
+                {% for arch in architectures %}
+                <option value="{{ arch.value }}" {% if active_architecture == arch.value %}selected{% endif %}>
+                    {{ arch.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <a href="?" class="btn btn-secondary">Clear Filters</a>
+    </form>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Teams</h5>
+                <h2>{{ total_teams }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total Environments</h5>
+                <h2>{{ total_envs }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total Cores</h5>
+                <h2>{{ total_cores|floatformat:0 }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total RAM</h5>
+                <h2>{{ total_ram_gb|floatformat:0 }} GB</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Interactive Charts -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h3>CPU Utilization by Team</h3>
+        <canvas id="cpuChart" style="max-height: 400px;"></canvas>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h3>RAM Utilization by Team</h3>
+        <canvas id="ramChart" style="max-height: 400px;"></canvas>
+    </div>
+</div>
+
+<!-- Team Aggregation Table -->
+{% render_table table %}
+
+{% if not teams %}
+<div class="alert alert-info">
+    No teams found matching the selected filters.
+</div>
+{% endif %}
+
+{{ chart_data|json_script:"team-chart-data" }}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Read team resource data embedded by the view (already filtered server-side).
+// Derived from declared quotas, so it works without CloudCapacity/Redis.
+function loadTeamResourceData() {
+    const el = document.getElementById('team-chart-data');
+    return el ? JSON.parse(el.textContent) : [];
+}
+
+// Global chart instances
+let cpuChartInstance = null;
+let ramChartInstance = null;
+
+// Create CPU utilization chart
+function createCPUChart(teams) {
+    const ctx = document.getElementById('cpuChart').getContext('2d');
+
+    // Destroy existing chart if it exists
+    if (cpuChartInstance) {
+        cpuChartInstance.destroy();
+    }
+
+    // Take top 20 teams by CPU
+    const topTeams = teams.slice(0, 20);
+
+    if (topTeams.length === 0) {
+        ctx.font = '16px Arial';
+        ctx.fillText('No data available for selected filters', 10, 50);
+        return;
+    }
+
+    cpuChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: topTeams.map(t => t.team),
+            datasets: [
+                {
+                    label: 'CPU cores (declared quota)',
+                    data: topTeams.map(t => t.cores),
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'CPU cores'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Team'
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(context) {
+                            const team = topTeams[context.dataIndex];
+                            return [
+                                `CPU: ${team.cores} cores`,
+                                `Environments: ${team.env_count}`
+                            ];
+                        }
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const team = topTeams[index].team;
+                    // Navigate to the filtered environment list via "Managed by"
+                    // (owner_exact); the synthetic 'Unknown' team -> no-team sentinel.
+                    const param = team === 'Unknown' ? '__unknown__' : team;
+                    window.location.href = `/?owner_exact=${encodeURIComponent(param)}`;
+                }
+            }
+        }
+    });
+}
+
+// Create RAM utilization chart
+function createRAMChart(teams) {
+    const ctx = document.getElementById('ramChart').getContext('2d');
+
+    // Destroy existing chart if it exists
+    if (ramChartInstance) {
+        ramChartInstance.destroy();
+    }
+
+    // Take top 20 teams by RAM
+    const topTeams = teams.slice(0, 20);
+
+    if (topTeams.length === 0) {
+        ctx.font = '16px Arial';
+        ctx.fillText('No data available for selected filters', 10, 50);
+        return;
+    }
+
+    ramChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: topTeams.map(t => t.team),
+            datasets: [
+                {
+                    label: 'RAM GB (declared quota)',
+                    data: topTeams.map(t => t.ram_gb),
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'RAM (GB)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Team'
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(context) {
+                            const team = topTeams[context.dataIndex];
+                            return [
+                                `RAM: ${team.ram_gb} GB`,
+                                `Environments: ${team.env_count}`
+                            ];
+                        }
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const team = topTeams[index].team;
+                    // Navigate to the filtered environment list via "Managed by"
+                    // (owner_exact); the synthetic 'Unknown' team -> no-team sentinel.
+                    const param = team === 'Unknown' ? '__unknown__' : team;
+                    window.location.href = `/?owner_exact=${encodeURIComponent(param)}`;
+                }
+            }
+        }
+    });
+}
+
+// Initialize charts when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        const data = loadTeamResourceData();
+
+        if (data && data.length > 0) {
+            createCPUChart(data);
+            createRAMChart(data);
+        } else {
+            console.warn('No team data available');
+            // Show message in charts
+            const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+            const ramCtx = document.getElementById('ramChart').getContext('2d');
+            cpuCtx.font = '16px Arial';
+            cpuCtx.fillText('No data available for selected filters', 10, 50);
+            ramCtx.font = '16px Arial';
+            ramCtx.fillText('No data available for selected filters', 10, 50);
+        }
+    } catch (error) {
+        console.error('Error loading charts:', error);
+        alert('Failed to load chart data. Please check the console for details.');
+    }
+});
+</script>
+{% endblock %}

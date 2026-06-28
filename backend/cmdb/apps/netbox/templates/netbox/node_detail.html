@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}{{ node.hostname }} — Node{% endblock %}
+
+{% block content %}
+<div class="mt-3">
+
+  {% if active_maintenance %}
+  <div class="alert alert-danger" role="alert">
+    🔧 <strong>Maintenance in progress / scheduled</strong> for this node:
+    {{ active_maintenance.reason }}
+    ({{ active_maintenance.starts_at|utclocal }} → {{ active_maintenance.ends_at|utclocal }})
+  </div>
+  {% endif %}
+
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb bg-light">
+      <li class="breadcrumb-item"><a href="/clouds/">Clouds</a></li>
+      <li class="breadcrumb-item"><a href="/clouds/{{ node.cloud }}/">{{ node.cloud }}</a></li>
+      <li class="breadcrumb-item active">{{ node.hostname }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex align-items-center mb-3">
+    <h3 class="mb-0 font-mono">{{ node.hostname }}</h3>
+    <span class="badge badge-{{ node.status|yesno:'secondary,secondary' }} ml-3">{{ node.status }}</span>
+    {% if node.completeness_band == 'green' %}
+      <span class="badge badge-success ml-2">physical data {% widthratio node.physical_completeness 1 100 %}%</span>
+    {% elif node.completeness_band == 'amber' %}
+      <span class="badge badge-warning ml-2">physical data {% widthratio node.physical_completeness 1 100 %}%</span>
+    {% else %}
+      <span class="badge badge-danger ml-2">physical data incomplete ({% widthratio node.physical_completeness 1 100 %}%)</span>
+    {% endif %}
+    <a href="{% url 'maintenance:window-new' hostname=node.hostname %}" class="btn btn-sm btn-outline-warning ml-auto">🔧 Schedule maintenance</a>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">Physical identity</div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0">
+            <tr><th>Hostname</th><td class="font-mono">{{ node.hostname }}</td></tr>
+            <tr><th>Site</th><td>{{ node.site|default:"—" }}</td></tr>
+            <tr><th>Cloud</th><td><a href="/clouds/{{ node.cloud }}/">{{ node.cloud }}</a></td></tr>
+            <tr><th>Rack</th><td>{{ node.rack|default:"—" }}</td></tr>
+            <tr><th>Host aggregate</th><td>{% if node.host_aggregate %}<span class="badge badge-info">{{ node.host_aggregate }}</span>{% else %}—{% endif %}</td></tr>
+            <tr><th>Role</th><td>{{ node.role|default:"—" }}</td></tr>
+            <tr><th>Status</th><td>{{ node.status }}</td></tr>
+            <tr><th>Primary IP</th><td class="font-mono">{{ node.primary_ip|default:"—" }}</td></tr>
+            <tr><th>Uplink redundancy</th><td>{{ node.uplink_redundancy|yesno:"yes,no" }}</td></tr>
+            <tr><th>Netbox ID</th><td>{{ node.netbox_id }}</td></tr>
+            <tr><th>Last synced</th><td>{{ node.last_synced_at|utclocal }}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          Environments placed here
+          <span class="badge badge-secondary">{{ placed_count }}</span>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>Environment</th><th>Role</th><th>Cloud</th></tr></thead>
+            <tbody>
+              {% for env in primary_envs %}
+              <tr>
+                <td><a href="{% url 'environment-detail' name=env.name %}">{{ env.name }}</a></td>
+                <td><span class="badge badge-info">primary</span></td>
+                <td>{{ env.cloud }}</td>
+              </tr>
+              {% endfor %}
+              {% for env in secondary_envs %}
+              <tr>
+                <td><a href="{% url 'environment-detail' name=env.name %}">{{ env.name }}</a></td>
+                <td><span class="badge badge-light">secondary</span></td>
+                <td>{{ env.cloud }}</td>
+              </tr>
+              {% endfor %}
+              {% if not primary_envs and not secondary_envs %}
+              <tr><td colspan="3" class="text-muted">No environments currently linked to this node.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">
+      Impact analysis
+      <a href="{% url 'netbox:node-resilience' hostname=node.hostname %}" class="float-right">Switch blast radius &raquo;</a>
+    </div>
+    <div class="card-body">
+      <p class="mb-2">
+        Uplink redundancy:
+        {% if node.uplink_redundancy %}<span class="badge badge-success">redundant (≥2 switches)</span>
+        {% else %}<span class="badge badge-secondary">unknown / single-homed</span>{% endif %}
+      </p>
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Environment</th><th>Placement</th><th>Resilience</th></tr></thead>
+        <tbody>
+          {% for env in primary_envs %}
+          <tr>
+            <td><a href="{% url 'environment-detail' name=env.name %}">{{ env.name }}</a></td>
+            <td><span class="badge badge-info">primary</span></td>
+            <td>{% if env.secondary_node_id %}<span class="badge badge-success">redundant</span>{% else %}<span class="badge badge-danger">single-homed</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+          {% for env in secondary_envs %}
+          <tr>
+            <td><a href="{% url 'environment-detail' name=env.name %}">{{ env.name }}</a></td>
+            <td><span class="badge badge-light">secondary</span></td>
+            <td><span class="badge badge-success">redundant</span></td>
+          </tr>
+          {% endfor %}
+          {% if not primary_envs and not secondary_envs %}
+          <tr><td colspan="3" class="text-muted">No environments on this node.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Interfaces <span class="badge badge-secondary">{{ interfaces|length }}</span></div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Name</th><th>MAC</th><th>Speed (Mbps)</th><th>Cable</th></tr></thead>
+        <tbody>
+          {% for iface in interfaces %}
+          <tr>
+            <td class="font-mono">{{ iface.name }}</td>
+            <td class="font-mono">{{ iface.mac_address|default:"—" }}</td>
+            <td>{{ iface.speed_mbps|default:"—" }}</td>
+            <td>{% if iface.has_cable %}<span class="badge badge-success">yes</span>{% else %}<span class="badge badge-secondary">no</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted">No interface data in Netbox for this node (Netbox holds no layer-1 data — see netbox-audit.md §3).</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Placement history (last 10)</div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Recorded</th><th>Primary</th><th>Secondary</th><th>Juju model</th><th>Source</th></tr></thead>
+        <tbody>
+          {% for ph in placement_history %}
+          <tr>
+            <td>{{ ph.recorded_at|utclocal }}</td>
+            <td class="font-mono">{{ ph.primary_node|default:"—" }}</td>
+            <td class="font-mono">{{ ph.secondary_node|default:"—" }}</td>
+            <td>{{ ph.juju_model|default:"—" }}</td>
+            <td>{{ ph.source }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-muted">No placement history recorded for this node.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

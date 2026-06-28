@@ -1,0 +1,37 @@
+{% comment %}Reusable CR table. Expects `rows` and optional `empty_text`.{% endcomment %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover js-sortable">
+    <thead class="thead-light">
+      <tr>
+        <th>Reference</th>
+        <th>Title</th>
+        <th>Type</th>
+        <th>Impact</th>
+        <th>Status</th>
+        <th>Risk</th>
+        <th>Region</th>
+        <th>Window</th>
+        <th>Affected</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in rows %}
+      <tr>
+        <td class="font-mono"><a href="{% url 'changes:detail' c.reference|default:c.pk %}">{{ c.reference|default:"(draft)" }}</a></td>
+        <td>{{ c.title }}</td>
+        <td><span class="badge badge-{{ c.type_badge }}">{{ c.get_change_type_display }}</span></td>
+        <td>{{ c.get_temperature_display }}</td>
+        <td><span class="badge badge-{{ c.status_badge }}">{{ c.get_status_display }}</span></td>
+        <td>{% if c.risk_tier %}<span class="badge badge-{{ c.risk_badge }}">{{ c.get_risk_tier_display }} ({{ c.risk_score }})</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td>{{ c.region|default:"—" }}</td>
+        <td>{% if c.maintenance_window_id %}<time class="cmdb-dt" datetime="{{ c.maintenance_window.starts_at|date:'c' }}">{{ c.maintenance_window.starts_at|date:'Y-m-d H:i' }}</time>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td>{{ c.affected.count }}</td>
+        <td><time class="cmdb-dt" datetime="{{ c.created_at|date:'c' }}">{{ c.created_at|date:'Y-m-d H:i' }}</time></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" class="text-center text-muted py-3">{{ empty_text|default:"None." }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

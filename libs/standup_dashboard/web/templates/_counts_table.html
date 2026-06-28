@@ -1,0 +1,56 @@
+<div class="section-title counts-title">
+  <span>Pulse {{ pulse_number }} counts</span>
+  {% if pulse_range %}<span class="pulse-range" title="Pulse span: Monday (week 1) through Friday (week 2)">{{ pulse_range }}</span>{% endif %}
+</div>
+<table class="counts">
+  <thead>
+    <tr>
+      <th>Day</th>
+      <th title="New ISReq Highest tickets" class="stk"><span class="proj">ISReq</span><span>New</span><span>Highest</span></th>
+      <th title="New [PR/MP Review] tickets created this day (by ticket creation date) — distinct from the Closed PR/MP column, which counts reviews completed, credited to the reviewer." class="stk"><span class="proj">ISReq</span><span>PR/MP</span><span>Review</span></th>
+      <th title="New ISReq ps5-blocker tickets" class="stk"><span class="proj">ISReq</span><span>New</span><span>ps5</span></th>
+      <th title="New ISReq regular tickets (not Highest / PR-MP / ps5)" class="stk"><span class="proj">ISReq</span><span>New</span><span>Regular</span></th>
+      <th title="New ISReq tickets total (sum of the four)" class="stk"><span class="proj">ISReq</span><span>New</span><span>Total</span></th>
+      <th title="Closed ISReq Highest tickets" class="stk grp"><span class="proj">ISReq</span><span>Closed</span><span>Highest</span></th>
+      <th title="Closed ISReq [PR/MP Review] tickets — credited to the assignee (owner) region" class="stk"><span class="proj">ISReq</span><span>Closed</span><span>PR/MP</span></th>
+      <th title="Closed ISReq ps5-blocker tickets" class="stk"><span class="proj">ISReq</span><span>Closed</span><span>ps5</span></th>
+      <th title="ISReq tickets closed total" class="stk"><span class="proj">ISReq</span><span>Closed</span><span>Total</span></th>
+      <th title="Region's share of all ISReq closed" class="stk"><span class="proj">ISReq</span><span>Closed</span><span>%</span></th>
+      <th title="ISDB tickets closed total" class="stk grp"><span class="proj">ISDB</span><span>Closed</span><span>Total</span></th>
+      <th title="Region's share of all ISDB closed" class="stk"><span class="proj">ISDB</span><span>Closed</span><span>%</span></th>
+      <th title="Alerts triggered (fired) — attributed to the handler's region" class="stk div"><span>Alerts</span><span>Trig</span></th>
+      <th title="Alerts acknowledged" class="stk"><span>Alerts</span><span>Ack</span></th>
+      <th title="Alerts resolved" class="stk"><span>Alert</span><span>Res</span></th>
+      <th title="Total alerts (ack + resolved)" class="stk"><span>Alerts</span><span>Total</span></th>
+      <th title="Mean time from acknowledgement to resolution, for incidents acked &amp; resolved within the row's day(s)" class="stk"><span>Alert</span><span>MTTR</span></th>
+      <th title="Mean time from incident trigger to first acknowledgement within the row's day(s)" class="stk"><span>Alert</span><span>MTTA</span></th>
+      <th title="Region share of global alerts that day">Region %</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in counts_rows %}
+    <tr class="{% if row.is_previous %}previous-pulse{% elif row.is_total %}pulse-total{% elif row.is_weekend %}weekend{% endif %}">
+      <td>{{ row.label }}</td>
+      <td data-tip="{{ row.new_highest.tip }}">{{ row.new_highest.count }}</td>
+      <td data-tip="{{ row.new_pr_mp.tip }}">{{ row.new_pr_mp.count }}</td>
+      <td data-tip="{{ row.new_ps5.tip }}">{{ row.new_ps5.count }}</td>
+      <td data-tip="{{ row.new_regular.tip }}">{{ row.new_regular.count }}</td>
+      <td class="sub" data-tip="{{ row.new_total.tip }}">{{ row.new_total.count }}</td>
+      <td class="grp {% if row.closed_highest_level %}lvl-{{ row.closed_highest_level.value }}{% endif %}" title="Closed Highest vs New Highest: green = closed more, yellow = equal, red = closed fewer" data-tip="{{ row.closed_highest.tip }}">{{ row.closed_highest.count }}</td>
+      <td class="{% if row.closed_pr_mp_level %}lvl-{{ row.closed_pr_mp_level.value }}{% endif %}" title="Closed PR/MP vs New PR/MP Review: green = kept up, yellow = 1 behind, red = 2+ behind" data-tip="{{ row.closed_pr_mp.tip }}">{{ row.closed_pr_mp.count }}</td>
+      <td class="{% if row.closed_ps5_level %}lvl-{{ row.closed_ps5_level.value }}{% endif %}" title="Closed ps5 vs New ps5: green = closed more, yellow = equal, red = closed fewer" data-tip="{{ row.closed_ps5.tip }}">{{ row.closed_ps5.count }}</td>
+      <td class="sub {% if row.closed_total_level %}lvl-{{ row.closed_total_level.value }}{% endif %}" title="Closed Total vs New Total (±2 per region): green = ahead by 2+/region, red = behind by 2+/region, yellow within" data-tip="{{ row.closed_total.tip }}">{{ row.closed_total.count }}</td>
+      <td>{% if row.closed_pct is none %}&mdash;{% else %}{{ "%.0f%%"|format(row.closed_pct) }}{% endif %}</td>
+      <td class="sub grp" data-tip="{{ row.isdb_closed.tip }}">{{ row.isdb_closed.count }}</td>
+      <td>{% if row.isdb_closed_pct is none %}&mdash;{% else %}{{ "%.0f%%"|format(row.isdb_closed_pct) }}{% endif %}</td>
+      <td class="div{% if row.triggered_level %} lvl-{{ row.triggered_level.value }}{% endif %}" data-tip="{{ row.alerts_triggered.tip }}">{{ row.alerts_triggered.count }}</td>
+      <td class="{% if row.ack_level %}lvl-{{ row.ack_level.value }}{% endif %}" data-tip="{{ row.alerts_ack.tip }}">{{ row.alerts_ack.count }}</td>
+      <td class="{% if row.resolved_level %}lvl-{{ row.resolved_level.value }}{% endif %}" data-tip="{{ row.alerts_resolved.tip }}">{{ row.alerts_resolved.count }}</td>
+      <td class="sub{% if row.total_level %} lvl-{{ row.total_level.value }}{% endif %}" data-tip="{{ row.alerts_total.tip }}">{{ row.alerts_total.count }}</td>
+      <td class="{% if row.mttr_level %}lvl-{{ row.mttr_level.value }}{% endif %}" title="Mean ack&rarr;resolve time ({{ row.alert_mttr_n }} incident{{ 's' if row.alert_mttr_n != 1 else '' }}); {% if row.is_total %}&#9650; vs previous pulse{% else %}&#9650; vs previous day{% endif %}">{{ row.mttr_label }}{% if row.mttr_delta_label %}<span class="delta">{{ row.mttr_delta_label }}</span>{% endif %}</td>
+      <td class="{% if row.mtta_level %}lvl-{{ row.mtta_level.value }}{% endif %}" title="Mean trigger&rarr;ack time ({{ row.alert_mtta_n }} incident{{ 's' if row.alert_mtta_n != 1 else '' }}); {% if row.is_total %}&#9650; vs previous pulse{% else %}&#9650; vs previous day{% endif %}">{{ row.mtta_label }}{% if row.mtta_delta_label %}<span class="delta">{{ row.mtta_delta_label }}</span>{% endif %}</td>
+      <td>{% if row.region_alert_pct is none %}&mdash;{% else %}{{ "%.0f%%"|format(row.region_alert_pct) }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

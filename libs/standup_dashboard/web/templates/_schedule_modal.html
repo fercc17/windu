@@ -1,0 +1,108 @@
+<div class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Role schedule</h2>
+      <button class="close" data-close-modal title="Close">&times;</button>
+    </div>
+
+    {% if summary %}
+    <div class="banner {% if summary.errors %}warn{% else %}ok{% endif %} paste-summary">
+      Applied {{ summary.roles }} role(s) and {{ summary.notes }} note(s).
+      {% if summary.errors %}
+      <ul>{% for e in summary.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <details class="paste-box">
+      <summary>Paste from spreadsheet</summary>
+      <p class="paste-hint">
+        Tab-separated. First row = engineer names (first/short names and aliases
+        work); each later row starts with a day (<code>Mon</code>…<code>Fri</code>;
+        weekend rows ignored). Role cells right-align to the engineer columns, so
+        a leading status cell (e.g. <code>OK</code>) is ignored. <code>PVG</code>,
+        <code>GEN</code>, <code>BVG</code>, <code>OFF</code> map directly; anything
+        else (e.g. <code>PS7+</code>) becomes <strong>Project</strong> (kept as a note).
+      </p>
+      <form hx-post="/schedule/paste" hx-target="#modal-root" hx-swap="innerHTML">
+        <textarea name="paste" rows="6" spellcheck="false"
+          placeholder="Date&#9;Afif&#9;Alejdg&#9;Alex L&#9;Colin&#9;Matt&#9;Nick&#10;Wed, Jun 10&#9;OK&#9;PVG&#9;GEN&#9;PS7+&#9;BVG&#9;OFF"></textarea>
+        <button type="submit" class="action">Apply paste</button>
+      </form>
+    </details>
+
+    {% for region in regions %}
+    <div class="sched-region">
+      <h3>{{ region.key }}</h3>
+      <div class="sched-scroll">
+        <table class="sched">
+          <thead>
+            <tr>
+              <th>Day</th>
+              {% for eng in region.engineers %}<th>{{ eng.name }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in week %}
+            {% if d.new_week %}
+            <tr class="week-sep"><td colspan="{{ region.engineers | length + 1 }}">Next week</td></tr>
+            {% endif %}
+            <tr{% if not d.role_editable %} class="next-week"{% endif %}>
+              <td class="stk"><span>{{ d.dow }}</span><span class="sched-date">{{ d.date }}</span></td>
+              {% for eng in region.engineers %}
+              {% set note = notes.get((eng.email, d.iso)) %}
+              <td {% if note %}title="{{ note }}"{% endif %}>
+                {% if d.role_editable %}
+                <select hx-post="/schedule/weekly" hx-swap="none"
+                        name="role"
+                        hx-vals='{"engineer_email": "{{ eng.email }}", "weekday": "{{ d.slot }}"}'>
+                  {% for r in roles %}
+                  <option value="{{ r }}" {% if defaults[(eng.email, d.slot)] == r %}selected{% endif %}>{{ r }}</option>
+                  {% endfor %}
+                </select>
+                {% else %}
+                <span class="ro-role" title="Weekly role (set under this week)">{{ defaults[(eng.email, d.slot)] }}</span>
+                {% endif %}
+                {% if d.note_editable %}
+                <input class="day-note-input" type="text" name="note" value="{{ note or '' }}"
+                       placeholder="note…" maxlength="200" spellcheck="false"
+                       hx-post="/schedule/note" hx-swap="none" hx-trigger="change"
+                       hx-vals='{"engineer_email": "{{ eng.email }}", "note_date": "{{ d.iso }}"}'>
+                {% elif note %}
+                <span class="day-note">{{ note }}</span>
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+            <tr class="override-row">
+              <td>Today override</td>
+              {% for eng in region.engineers %}
+              <td>
+                <select hx-post="/schedule/override" hx-swap="none"
+                        name="role"
+                        hx-vals='{"engineer_email": "{{ eng.email }}"}'>
+                  <option value="">&mdash;</option>
+                  {% for r in roles %}
+                  <option value="{{ r }}" {% if overrides.get(eng.email) == r %}selected{% endif %}>{{ r }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+
+    <p class="override-note">
+      <strong>Roles</strong> are weekly and recurring (edit them on this week; next
+      week is shown read-only). <strong>Day notes</strong> attach to a specific date
+      and can be set for today or any future day. <strong>Weekend</strong> has no
+      role — coverage is whoever is on-call (from the PagerDuty iCal feed).
+      Overrides apply to <strong>today only</strong> and expire at the engineer's
+      region-local midnight.
+    </p>
+  </div>
+</div>
