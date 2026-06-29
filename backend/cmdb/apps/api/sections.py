@@ -103,6 +103,12 @@ def standup_board(request, p):
     return build_standup_board()
 
 
+def pulse_history(request, p):
+    """Per-pulse, per-region counts (its own Operations subtab)."""
+    from .standup_view import build_pulse_history
+    return build_pulse_history()
+
+
 # --- ISReq (jira_issue, ISREQ project) --------------------------------------
 def isreq_overview(request, p):
     from cmdb.apps.jira.models import JiraIssue
@@ -402,6 +408,7 @@ def _placeholder(msg):
 PAGES = {
     # IS-only
     "standup": ("Stand up", True, standup_board),
+    "pulse_history": ("Pulse history", True, pulse_history),
     "isreq": ("ISReq", True, isreq_overview),
     "isdb": ("ISDB", True, isdb_overview),
     "pagerduty": ("PagerDuty", True, pagerduty_overview),

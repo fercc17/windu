@@ -226,6 +226,16 @@ class Command(BaseCommand):
         finally:
             dst_conn.close()
 
+        # The per-day pulse counts are derived (not copied), so recompute & store
+        # them whenever standup or PagerDuty data changed (they feed the table).
+        if {"standup", "pd"} & set(domains):
+            from django.core.management import call_command
+            self.stdout.write(self.style.MIGRATE_HEADING("\n== derived: pulse day counts =="))
+            try:
+                call_command("standup_compute_day_counts")
+            except Exception as exc:  # don't fail the whole ETL on a derived step
+                self.stdout.write(self.style.WARNING(f"  pulse day counts skipped: {exc}"))
+
     def _copy_dynamic(self, src_conn, dst_conn, tables):
         """Copy same-named tables by column introspection, in one deferred-FK txn."""
         def columns(conn, table):

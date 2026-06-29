@@ -216,13 +216,10 @@ class EnvironmentListView(FilterView, SingleTableView):
                 else:
                     table.placement_by_name = self._placement_map(names)
 
-        # Add region tabs + the Modernize (not-resilient) tab.
+        # Only the All + Modernize tabs (region is available as a filter dropdown).
         modernize_count = context['total_count'] - len(self._resilient_names())
         context['tabs'] = [
             {'name': 'All', 'value': 'all', 'count': context['total_count']},
-            {'name': 'AMER', 'value': 'amer', 'count': Environment.objects.filter(region='amer').count()},
-            {'name': 'EMEA', 'value': 'emea', 'count': Environment.objects.filter(region='emea').count()},
-            {'name': 'APAC', 'value': 'apac', 'count': Environment.objects.filter(region='apac').count()},
             {'name': 'Modernize', 'value': 'modernize', 'count': modernize_count},
         ]
         context['active_tab'] = self.request.GET.get('tab', 'all')

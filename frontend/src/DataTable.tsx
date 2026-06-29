@@ -8,6 +8,20 @@ import { fmt } from "./DataPanel";
 type Row = Record<string, unknown>;
 const PAGE_SIZE = 50;
 
+// A colored cell {v, c}: the backend bands a value green/yellow/red. We sort,
+// filter and search on the underlying `v`, and render it with the colour.
+type Cell = { v: unknown; c: string };
+function isCell(v: unknown): v is Cell {
+  return !!v && typeof v === "object" && !Array.isArray(v) && "v" in (v as object);
+}
+function cellVal(v: unknown): unknown {
+  return isCell(v) ? v.v : v;
+}
+function renderCell(x: unknown) {
+  if (isCell(x)) return <span className={"dt-c dt-c--" + x.c}>{fmt(x.v)}</span>;
+  return fmt(x);
+}
+
 function isEmpty(v: unknown) {
   return v === null || v === undefined || v === "";
 }
@@ -23,6 +37,7 @@ export function DataTable({ data }: { data: Row[] }) {
     if (!data.length) return [];
     return Object.keys(data[0]).filter((c) => {
       const v = data[0][c];
+      if (isCell(v)) return true;
       return !Array.isArray(v) && (typeof v !== "object" || v === null);
     });
   }, [data]);
@@ -33,8 +48,9 @@ export function DataTable({ data }: { data: Row[] }) {
     for (const c of cols) {
       const set = new Set<string>();
       for (const r of data) {
-        if (isEmpty(r[c])) continue;
-        set.add(String(r[c]));
+        const v = cellVal(r[c]);
+        if (isEmpty(v)) continue;
+        set.add(String(v));
         if (set.size > 25) break;
       }
       if (set.size >= 2 && set.size <= 25 && set.size < data.length) {
@@ -54,18 +70,18 @@ export function DataTable({ data }: { data: Row[] }) {
     const q = query.trim().toLowerCase();
     return data.filter((r) => {
       for (const [c, val] of Object.entries(filters)) {
-        if (val && String(r[c] ?? "") !== val) return false;
+        if (val && String(cellVal(r[c]) ?? "") !== val) return false;
       }
       if (!q) return true;
-      return cols.some((c) => String(r[c] ?? "").toLowerCase().includes(q));
+      return cols.some((c) => String(cellVal(r[c]) ?? "").toLowerCase().includes(q));
     });
   }, [data, cols, query, filters]);
 
   const sorted = useMemo(() => {
     if (!sortKey) return filtered;
-    const numeric = allNumeric(filtered.map((r) => r[sortKey]));
+    const numeric = allNumeric(filtered.map((r) => cellVal(r[sortKey])));
     return [...filtered].sort((a, b) => {
-      const av = a[sortKey], bv = b[sortKey];
+      const av = cellVal(a[sortKey]), bv = cellVal(b[sortKey]);
       if (isEmpty(av) && isEmpty(bv)) return 0;
       if (isEmpty(av)) return 1;
       if (isEmpty(bv)) return -1;
@@ -127,7 +143,7 @@ export function DataTable({ data }: { data: Row[] }) {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i}>{cols.map((c) => <td key={c}>{fmt(r[c])}</td>)}</tr>
+              <tr key={i}>{cols.map((c) => <td key={c}>{renderCell(r[c])}</td>)}</tr>
             ))}
           </tbody>
         </table>

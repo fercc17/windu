@@ -290,3 +290,47 @@ class JiraAccount(models.Model):
 
     class Meta:
         db_table = 'standup_jira_account'
+
+
+class PulseDayCount(models.Model):
+    """Pre-computed per-day, per-region counts for the current pulse (#counts).
+
+    One row per (pulse, region, day) plus a per-region "Pulse total" row. Raw
+    numbers only — the MTTR/MTTA accumulators are stored as sum+n so regions are
+    addable, and the colour bands + percentage columns are derived at read time
+    from the summed cells (no recompute). Computed by the
+    ``standup_compute_day_counts`` step, truncate+reload like the ETL."""
+    pulse_number = models.IntegerField()
+    region = models.TextField()
+    sort_order = models.IntegerField()       # row position (days, then total)
+    label = models.TextField()               # e.g. "Mon 22 Jun" / "Sat–Sun 27–28 Jun"
+    day_start = models.TextField(null=True, blank=True)  # ISO date, null for the total
+    day_end = models.TextField(null=True, blank=True)
+    is_weekend = models.BooleanField(default=False)
+    is_total = models.BooleanField(default=False)
+    new_highest = models.IntegerField(default=0)
+    new_pr_mp = models.IntegerField(default=0)
+    new_ps5 = models.IntegerField(default=0)
+    new_regular = models.IntegerField(default=0)
+    new_total = models.IntegerField(default=0)
+    closed_highest = models.IntegerField(default=0)
+    closed_pr_mp = models.IntegerField(default=0)
+    closed_ps5 = models.IntegerField(default=0)
+    closed_total = models.IntegerField(default=0)
+    isdb_closed = models.IntegerField(default=0)
+    alerts_triggered = models.IntegerField(default=0)
+    alerts_ack = models.IntegerField(default=0)
+    alerts_resolved = models.IntegerField(default=0)
+    alerts_total = models.IntegerField(default=0)
+    mttr_sum = models.IntegerField(default=0)
+    mttr_n = models.IntegerField(default=0)
+    mtta_sum = models.IntegerField(default=0)
+    mtta_n = models.IntegerField(default=0)
+    updated_at = models.TextField()
+
+    class Meta:
+        db_table = 'standup_pulse_day_count'
+        constraints = [
+            models.UniqueConstraint(fields=['pulse_number', 'region', 'sort_order'],
+                                    name='uq_standup_pulse_day_count'),
+        ]
