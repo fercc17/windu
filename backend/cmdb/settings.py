@@ -71,7 +71,9 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # XFrameOptionsMiddleware intentionally omitted: the original is-cmdb views are
+    # embedded (iframe) inside the windu React shell. For production, restrict
+    # framing with a CSP frame-ancestors header instead.
 ]
 
 ROOT_URLCONF = 'cmdb.urls'
@@ -87,6 +89,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # `embed` flag (?embed=1) -> chrome-less rendering for the shell iframe.
+                'cmdb.apps.api.context_processors.embed',
             ],
             # Make CMDB formatting filters (e.g. `utclocal`) available in every
             # template without a per-file {% load cmdb_format %}.

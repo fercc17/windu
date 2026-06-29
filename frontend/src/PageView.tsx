@@ -16,7 +16,7 @@ import {
 import { getPage } from "./api/client";
 import { Kv } from "./DataPanel";
 import { DataTable } from "./DataTable";
-import { StandupBoard, type SuSection } from "./StandupBoard";
+import { StandupBoard, PulseHistory, type SuSection } from "./StandupBoard";
 import type { Page } from "./pages";
 
 type Row = Record<string, unknown>;
@@ -35,7 +35,8 @@ type Section =
       stacked?: boolean;
       marks?: Mark[];
     }
-  | SuSection;
+  | SuSection
+  | { type: "pulse_history"; title: string; rows: Record<string, unknown>[]; regions: string[] };
 
 // Recharts renders axis ticks/grid as SVG with light-theme defaults (#666 / #eee),
 // which vanish on the dark canvas — pin readable dark-mode colours here.
@@ -158,8 +159,9 @@ function TableSection({ s }: { s: Extract<Section, { type: "table" }> }) {
   );
 }
 
-function SectionView({ s, stackPct }: { s: Section; stackPct: boolean }) {
-  if (s.type === "standup") return <StandupBoard section={s} />;
+function SectionView({ s, stackPct, reload }: { s: Section; stackPct: boolean; reload?: () => void }) {
+  if (s.type === "standup") return <StandupBoard section={s} reload={reload} />;
+  if (s.type === "pulse_history") return <PulseHistory section={s} />;
   if (s.type === "chart") return <ChartSection s={s} stackPct={stackPct} />;
   if (s.type === "table") return <TableSection s={s} />;
   return (
@@ -181,10 +183,12 @@ export function PageView({
 }) {
   const [sections, setSections] = useState<Section[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const reload = () => setNonce((n) => n + 1);
 
   // Refetch whenever the endpoint or any View control changes. Serialising params
   // keeps the effect from refiring on referentially-new-but-equal objects.
-  const key = `${page.endpoint}?${JSON.stringify(params)}`;
+  const key = `${page.endpoint}?${JSON.stringify(params)}#${nonce}`;
   useEffect(() => {
     let alive = true;
     setSections(null);
@@ -211,7 +215,7 @@ export function PageView({
   return (
     <div className="panel">
       {sections.map((s, i) => (
-        <SectionView key={`${s.type}:${s.title}:${i}`} s={s} stackPct={stackPct} />
+        <SectionView key={`${s.type}:${s.title}:${i}`} s={s} stackPct={stackPct} reload={reload} />
       ))}
     </div>
   );
